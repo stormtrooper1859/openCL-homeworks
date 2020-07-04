@@ -3,4 +3,4 @@ project(openCL_homeworks C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(openCL_homeworks main.c)
+add_subdirectory (matrix_multiplication)

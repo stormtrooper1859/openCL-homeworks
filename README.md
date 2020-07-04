@@ -1,0 +1,3 @@
+# openCL-homeworks
+
+## matrix multiplication

@@ -1,8 +1,13 @@
-kernel void add(global const float *a, global const float *b, global float *c, const uint m, const uint p) {
-	uint id0 = get_global_id(0);
-	uint id1 = get_global_id(1);
+kernel void matrix_mul(global const float *a, global const float *b, global float *c, uint N, uint K, uint M) {
+    uint id0 = get_global_id(0);
+    uint id1 = get_global_id(1);
 
-	float temp = 0;
+    uint cache1 = id0 * K;
+    uint cache2 = id1 * K;
 
-	c[id0 * p + id1] = temp;
+    float temp = 0;
+    for (uint k = 0; k < K; k++) {
+        temp += a[cache1 + k] * b[cache2 + k];
+    }
+    c[id0 * M + id1] = temp;
 }

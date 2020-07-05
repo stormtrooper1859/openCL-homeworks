@@ -3,6 +3,7 @@
 #include <time.h>
 #include "utils.h"
 #include "classic_multiplication.h"
+#include "openCL_multiplication.h"
 
 void printMatrix(float *matrix, int n, int m) {
     for (int i = 0; i < n; i++) {
@@ -18,20 +19,22 @@ void printMatrix(float *matrix, int n, int m) {
 int main() {
     srand(time(0));
 
-    const int n = 1000;
-    const int m = 1100;
-    const int p = 1200;
+    const size_t n = 16 * 62;
+    const size_t k = 16 * 68;
+    const size_t m = 16 * 74;
 
-    float *matrix1 = generateMatrix(n, m);
-    float *matrix2 = generateMatrix(m, p);
+    float *matrix1 = generateMatrix(n, k);
+    float *matrix2 = generateMatrix(k, m);
+
+    float *matrix3CL = matrixMulOpenCL(matrix1, matrix2, n, k, m);
 
     clock_t begin_calculation = clock();
 
-    float *matrix3 = matrixMulMP(matrix1, matrix2, n, m, p);
+    float *matrix3MP = matrixMulMP(matrix1, matrix2, n, k, m);
 
     clock_t end_calculation = clock();
 
-    float *matrix3CHECK = matrixMul(matrix1, matrix2, n, m, p);
+//    float *matrix3CHECK = matrixMul(matrix1, matrix2, n, m, p);
 
     clock_t end_calculation2 = clock();
 
@@ -40,7 +43,7 @@ int main() {
     printf("%.0fms\n", stat1);
     printf("%.0fms\n", stat2);
 
-    printf("Result of comparing: %i\n", matrixCompare(matrix3, matrix3CHECK, n, p));
+    printf("Result of comparing: %i\n", matrixCompare(matrix3CL, matrix3MP, n, m));
 
     return 0;
 }

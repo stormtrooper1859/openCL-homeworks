@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "classic_multiplication.h"
+#include "utils.h"
 
 float *matrixMul(float const *matrix1, float const *matrix2, int n, int m, int p) {
     float *result_matrix = (float *) malloc(n * p * sizeof(float));
@@ -18,8 +19,10 @@ float *matrixMul(float const *matrix1, float const *matrix2, int n, int m, int p
 }
 
 
-float *matrixMulMP(float const *matrix1, float const *matrix2T, int n, int m, int p) {
+float *matrixMulMP(float const *matrix1, float const *matrix2, int n, int m, int p) {
     float *result_matrix = (float *) malloc(n * p * sizeof(float));
+
+    float *matrix2T = getTransposedMatrix(matrix2, m , p);
 
 #pragma omp parallel
     {
@@ -37,6 +40,8 @@ float *matrixMulMP(float const *matrix1, float const *matrix2T, int n, int m, in
         }
 
     }
+
+    free(matrix2T);
 
     return result_matrix;
 }

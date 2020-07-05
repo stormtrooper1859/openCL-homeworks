@@ -24,12 +24,10 @@ int main() {
 
     float *matrix1 = generateMatrix(n, m);
     float *matrix2 = generateMatrix(m, p);
-    float *matrix2T = getTransposedMatrix(matrix2, m, p);
-
 
     clock_t begin_calculation = clock();
 
-    float *matrix3 = matrixMulMP(matrix1, matrix2T, n, m, p);
+    float *matrix3 = matrixMulMP(matrix1, matrix2, n, m, p);
 
     clock_t end_calculation = clock();
 

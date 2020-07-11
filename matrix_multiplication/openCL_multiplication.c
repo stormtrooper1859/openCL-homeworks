@@ -95,14 +95,14 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     }
 
     char *buildOptions = (char *)calloc(1, 1000 * sizeof(char));
-    sprintf(buildOptions, "-D LS1=%Iu", sizeX);
+    sprintf(buildOptions, "-D TILE_W=%Iu -D TILE_H=%Iu", sizeX, sizeY);
 
     printf("buildOptions: %s\n", buildOptions);
 
     errCode = clBuildProgram(clProg, 1, deviceIds + numOfDevice, buildOptions, NULL, NULL);
     if (errCode != 0) {
         printf("BuildProgram errCode %d\n", errCode);
-        return NULL;
+//        return NULL;
     }
     size_t clBuildInfoLogSize = -1;
     clGetProgramBuildInfo(clProg, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);

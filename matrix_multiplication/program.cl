@@ -28,6 +28,7 @@ __kernel void matrix_mul(global const float *a, global const float *b, global fl
 
         barrier(CLK_LOCAL_MEM_FENCE);
 
+#pragma unroll
         for (uint k = 0; k < TILE_W; k++) {
             //            temp += at[x * TILE_W + k] * bt[y * TILE_W + k];
             //            temp += at[x][k] * bt[k][y];

@@ -22,6 +22,9 @@ int main() {
 //    const size_t n = 16 * 62;
 //    const size_t k = 16 * 68;
 //    const size_t m = 16 * 74;
+//    const size_t n = 2048;
+//    const size_t k = 1024;
+//    const size_t m = 2048;
     const size_t n = 2048;
     const size_t k = 512;
     const size_t m = 1024;
@@ -33,6 +36,7 @@ int main() {
 
     clock_t begin_calculation = clock();
 
+    printf("comparing...\n");
     float *matrix3MP = matrixMulMP(matrix1, matrix2, n, k, m);
 
     clock_t end_calculation = clock();

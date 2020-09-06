@@ -4,39 +4,77 @@
 #include "openCL_multiplication.h"
 #include "utils.h"
 
-//#define CHECK_ERR()
+#ifndef CHECK_ERR
+#define CHECK_ERR(intro, result, exit_label)        \
+do {                                                \
+    if ((result) < 0)                               \
+    {                                               \
+        fprintf(stderr, "%s: %d", intro, result);   \
+        exit_code = -1;                             \
+        goto exit_label;                            \
+    }                                               \
+} while (0)
+#endif
 
-const size_t sizeX = 16;
-const size_t sizeY = 16;
+const size_t sizeX = 32;
+const size_t sizeY = 32;
 
-float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, size_t k, size_t m) {
+#ifdef DEBUG
+#ifndef DEBUG_PRINT
+#define DEBUG_PRINT(s)  \
+do {                    \
+    s;                  \
+} while (0)
+#endif
+#else
+#define DEBUG_PRINT(s)
+#endif
+
+cl_platform_id *getPreferredPlatform() {
     cl_int errCode;
-    cl_uint platformNums;
-    errCode = clGetPlatformIDs(0, NULL, &platformNums);
-    printf("PlatformsNums: %u\n", platformNums);
+    cl_uint platformsNum;
+    errCode = clGetPlatformIDs(0, NULL, &platformsNum);
+    DEBUG_PRINT(printf("Platforms num: %u\n", platformsNum));
 
-    cl_platform_id *platforms = (cl_platform_id *) malloc(platformNums * sizeof(cl_platform_id));
-    errCode = clGetPlatformIDs(platformNums, platforms, &platformNums);
+    cl_platform_id *platforms = (cl_platform_id *) malloc(platformsNum * sizeof(cl_platform_id));
+    errCode = clGetPlatformIDs(platformsNum, platforms, &platformsNum);
 
-    if (platformNums <= 0) {
+    if (platformsNum <= 0) {
         printf("Platforms not founds\n");
         return NULL;
     }
 
+    for (int i = 0; i < platformsNum; i++) {
+        size_t clPlatformNameSize;
+        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
+        char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
+        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
+                                    &clPlatformNameSize);
+        DEBUG_PRINT(printf("Platform %d: %s\n", i, clPlatformName));
+        free(clPlatformName);
+    }
 
-    size_t clPlatformNameSize;
-    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
-    printf("clPlatformNameSize: %llu\n", clPlatformNameSize);
-    char *clPlatformName = (char *)malloc(clPlatformNameSize * sizeof(char));
-    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName, &clPlatformNameSize);
-    printf("Platform %d: %d %s\n", 0, errCode, clPlatformName);
+//    size_t clPlatformNameSize;
+//    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
+//    DEBUG_PRINT(printf("clPlatformNameSize: %llu\n", clPlatformNameSize));
+//    char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
+//    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
+//                                &clPlatformNameSize);
+//    DEBUG_PRINT(printf("Platform %d: %d %s\n", 0, errCode, clPlatformName));
 
+    return platforms;
+}
+
+cl_device_id *getPreferredDevice() {
+    cl_platform_id *platforms = getPreferredPlatform();
+
+    cl_int errCode;
     cl_uint deviceNums;
     errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceNums);
-    printf("DevicesNums: %d %d\n", errCode, deviceNums);
-    cl_device_id *deviceIds = (cl_device_id *)malloc(deviceNums * sizeof(cl_device_id));
+    DEBUG_PRINT(printf("DevicesNums: %d %d\n", errCode, deviceNums));
+    cl_device_id *deviceIds = (cl_device_id *) malloc(deviceNums * sizeof(cl_device_id));
     errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, deviceNums, deviceIds, &deviceNums);
-    printf("Devices: %d %d\n", errCode, deviceNums);
+    DEBUG_PRINT(printf("Devices: %d %d\n", errCode, deviceNums));
 
     if (deviceNums <= 0) {
         printf("Devices not founds\n");
@@ -46,19 +84,78 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     for (int i = 0; i < deviceNums; i++) {
         size_t clDeviceNameSize = -1;
         errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, 0, NULL, &clDeviceNameSize);
-        char *clDeviceName = (char *)malloc(clDeviceNameSize * sizeof(char));
+        char *clDeviceName = (char *) malloc(clDeviceNameSize * sizeof(char));
         errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, clDeviceNameSize, clDeviceName, &clDeviceNameSize);
-        printf("DeviceName %d: %d %s\n", i, errCode, clDeviceName);
+        DEBUG_PRINT(printf("DeviceName %d: %d %s\n", i, errCode, clDeviceName));
         cl_uint clDeviceAddressBits;
         size_t clDeviceAddressBitsRetSize;
         // errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, 0, NULL, &clDeviceNameSize);
         // char *clDeviceName = (char *)malloc(clDeviceNameSize * sizeof(char));
-        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &clDeviceAddressBits, &clDeviceAddressBitsRetSize);
-        printf("DeviceAddressBits %d: %d %d\n", i, errCode, clDeviceAddressBits);
+        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &clDeviceAddressBits,
+                                  &clDeviceAddressBitsRetSize);
+        DEBUG_PRINT(printf("DeviceAddressBits %d: %d %d\n", i, errCode, clDeviceAddressBits));
     }
+
+    return deviceIds;
+}
+
+float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, size_t k, size_t m) {
+    cl_int errCode;
+//    cl_uint platformsNum;
+//    errCode = clGetPlatformIDs(0, NULL, &platformsNum);
+//    printf("PlatformsNums: %u\n", platformsNum);
+
+//    cl_platform_id *platforms = getPreferredPlatform();
+
+//    errCode = clGetPlatformIDs(0, NULL, &platformsNum);
+//    printf("PlatformsNums: %u\n", platformsNum);
+//
+//    cl_platform_id *platforms = (cl_platform_id *) malloc(platformsNum * sizeof(cl_platform_id));
+//    errCode = clGetPlatformIDs(platformsNum, platforms, &platformsNum);
+//
+//    if (platformsNum <= 0) {
+//        printf("Platforms not founds\n");
+//        return NULL;
+//    }
+//
+//
+//    size_t clPlatformNameSize;
+//    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
+//    printf("clPlatformNameSize: %llu\n", clPlatformNameSize);
+//    char *clPlatformName = (char *)malloc(clPlatformNameSize * sizeof(char));
+//    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName, &clPlatformNameSize);
+//    printf("Platform %d: %d %s\n", 0, errCode, clPlatformName);
+//
+//    cl_uint deviceNums;
+//    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceNums);
+//    printf("DevicesNums: %d %d\n", errCode, deviceNums);
+//    cl_device_id *deviceIds = (cl_device_id *)malloc(deviceNums * sizeof(cl_device_id));
+//    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, deviceNums, deviceIds, &deviceNums);
+//    printf("Devices: %d %d\n", errCode, deviceNums);
+//
+//    if (deviceNums <= 0) {
+//        printf("Devices not founds\n");
+//        return NULL;
+//    }
+//
+//    for (int i = 0; i < deviceNums; i++) {
+//        size_t clDeviceNameSize = -1;
+//        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, 0, NULL, &clDeviceNameSize);
+//        char *clDeviceName = (char *)malloc(clDeviceNameSize * sizeof(char));
+//        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, clDeviceNameSize, clDeviceName, &clDeviceNameSize);
+//        printf("DeviceName %d: %d %s\n", i, errCode, clDeviceName);
+//        cl_uint clDeviceAddressBits;
+//        size_t clDeviceAddressBitsRetSize;
+//        // errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, 0, NULL, &clDeviceNameSize);
+//        // char *clDeviceName = (char *)malloc(clDeviceNameSize * sizeof(char));
+//        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &clDeviceAddressBits, &clDeviceAddressBitsRetSize);
+//        printf("DeviceAddressBits %d: %d %d\n", i, errCode, clDeviceAddressBits);
+//    }
 
     //    size_t deviceNum = 1;
 
+
+    cl_device_id *deviceIds = getPreferredDevice();
 
     const int numOfDevice = 0;
 
@@ -77,7 +174,6 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     }
 
 
-
     size_t programSize = 0;
     const char *programSource = readFile("./program.cl", &programSize);
 
@@ -94,7 +190,7 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
         return NULL;
     }
 
-    char *buildOptions = (char *)calloc(1, 1000 * sizeof(char));
+    char *buildOptions = (char *) calloc(1, 1000 * sizeof(char));
     sprintf(buildOptions, "-D TILE_W=%Iu -D TILE_H=%Iu", sizeX, sizeY);
 
     printf("buildOptions: %s\n", buildOptions);
@@ -106,7 +202,7 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     }
     size_t clBuildInfoLogSize = -1;
     clGetProgramBuildInfo(clProg, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);
-    char *buildInfoLog = (char *)malloc(clBuildInfoLogSize * sizeof(char));
+    char *buildInfoLog = (char *) malloc(clBuildInfoLogSize * sizeof(char));
     clGetProgramBuildInfo(clProg, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, clBuildInfoLogSize, buildInfoLog,
                           &clBuildInfoLogSize);
     printf("Compiler response: %s\n", buildInfoLog);
@@ -126,10 +222,12 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
                                        &kernelWorkGroupSize, &actualKernelWorkGroupSizeBytes);
     size_t kernelPreferredWorkGroupSizeMultipe;
     size_t actualKernelPreferredWorkGroupSizeMultipe;
-    errCode = clGetKernelWorkGroupInfo(kernel, deviceIds[numOfDevice], CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE, sizeof(size_t),
-                                       &kernelPreferredWorkGroupSizeMultipe, &actualKernelPreferredWorkGroupSizeMultipe);
+    errCode = clGetKernelWorkGroupInfo(kernel, deviceIds[numOfDevice], CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+                                       sizeof(size_t),
+                                       &kernelPreferredWorkGroupSizeMultipe,
+                                       &actualKernelPreferredWorkGroupSizeMultipe);
     cl_ulong kernelLocalMemSize;
-    long long  actualKernelLocalMemSize;
+    long long actualKernelLocalMemSize;
     errCode = clGetKernelWorkGroupInfo(kernel, deviceIds[numOfDevice], CL_KERNEL_LOCAL_MEM_SIZE, sizeof(long long),
                                        &kernelLocalMemSize, &actualKernelLocalMemSize);
     printf("GetKernelWorkGroupInfo errCode %d\n", errCode);
@@ -213,9 +311,9 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
 
     cl_event event;
     //    size_t aaa = arrLen;
-    size_t dimSize[2] = { (size_t)n, (size_t)m };
-    size_t zero[2] = { 0, 0 };
-    size_t dimLocal[2] = { sizeX, sizeY };
+    size_t dimSize[2] = {(size_t) n, (size_t) m};
+    size_t zero[2] = {0, 0};
+    size_t dimLocal[2] = {sizeX, sizeY};
     errCode = clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, dimSize, dimLocal, 0, 0, &event);
     if (errCode != 0) {
         printf("clEnqueueNDRangeKernel errCode %d\n", errCode);
@@ -225,7 +323,7 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     errCode = clEnqueueReadBuffer(commandQueue, buffer3, 1, 0, sizeof(float) * n * m, matrix3, 0, 0, 0);
     if (errCode != 0) {
         printf("Enqueue read buffer errCode %d\n", errCode);
-         return NULL;
+        return NULL;
     }
 
 
@@ -258,7 +356,7 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
 //    printf("Time begin: %lldms\n", begin);
 //    printf("Time end: %lldms\n", end);
 
-    double flps = ((double)n * k * m * 2) / ((double)end - begin);
+    double flps = ((double) n * k * m * 2) / ((double) end - begin);
     printf("%.6f GFlops\n", flps);
 
     errCode = clReleaseKernel(kernel);
@@ -283,10 +381,7 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     }
 
 
-    printf("comparing...\n");
-
-
+    end:
     return matrix3;
-
 }
 

@@ -18,6 +18,7 @@ do {                                                \
 
 const size_t sizeX = 32;
 const size_t sizeY = 32;
+const size_t itemPerThread = 1;
 
 #ifdef DEBUG
 #ifndef DEBUG_PRINT
@@ -191,7 +192,7 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     }
 
     char *buildOptions = (char *) calloc(1, 1000 * sizeof(char));
-    sprintf(buildOptions, "-D TILE_W=%Iu -D TILE_H=%Iu", sizeX, sizeY);
+    sprintf(buildOptions, "-D TILE_W=%Iu -D TILE_H=%Iu -D WPT=%Iu", sizeX, sizeY, itemPerThread);
 
     printf("buildOptions: %s\n", buildOptions);
 
@@ -245,7 +246,8 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
 
 
     float *matrix3 = (float *) malloc(n * m * sizeof(float));
-    float *matrix21 = getTransposedMatrix(matrix2, k, m);
+//    float *matrix21 = getTransposedMatrix(matrix2, k, m);
+    float *matrix21 = matrix2;
 
 
     cl_mem buffer1 = clCreateBuffer(context, CL_MEM_READ_ONLY, 4 * sizeof(float) * n * k, NULL, &errCode);
@@ -311,9 +313,10 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
 
     cl_event event;
     //    size_t aaa = arrLen;
-    size_t dimSize[2] = {(size_t) n, (size_t) m};
+    size_t dimSize[2] = {(size_t) m, (size_t) n};
+//    size_t dimSize[2] = {(size_t) n, (size_t) m};
     size_t zero[2] = {0, 0};
-    size_t dimLocal[2] = {sizeX, sizeY};
+    size_t dimLocal[2] = {sizeX / itemPerThread, sizeY};
     errCode = clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, dimSize, dimLocal, 0, 0, &event);
     if (errCode != 0) {
         printf("clEnqueueNDRangeKernel errCode %d\n", errCode);

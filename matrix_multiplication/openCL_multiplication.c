@@ -18,7 +18,7 @@ do {                                                \
 
 const size_t sizeX = 32;
 const size_t sizeY = 32;
-const size_t itemPerThread = 1;
+const size_t itemPerThread = 8;
 
 #ifdef DEBUG
 #ifndef DEBUG_PRINT
@@ -313,10 +313,9 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
 
     cl_event event;
     //    size_t aaa = arrLen;
-    size_t dimSize[2] = {(size_t) m, (size_t) n};
-//    size_t dimSize[2] = {(size_t) n, (size_t) m};
+    size_t dimSize[2] = {(size_t) m, (size_t) n / itemPerThread};
     size_t zero[2] = {0, 0};
-    size_t dimLocal[2] = {sizeX / itemPerThread, sizeY};
+    size_t dimLocal[2] = {sizeX, sizeY / itemPerThread};
     errCode = clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, dimSize, dimLocal, 0, 0, &event);
     if (errCode != 0) {
         printf("clEnqueueNDRangeKernel errCode %d\n", errCode);

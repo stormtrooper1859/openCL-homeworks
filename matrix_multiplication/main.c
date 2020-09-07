@@ -22,12 +22,12 @@ int main() {
 //    const size_t n = 16 * 62;
 //    const size_t k = 16 * 68;
 //    const size_t m = 16 * 74;
-//    const size_t n = 2048;
-//    const size_t k = 1024;
-//    const size_t m = 2048;
     const size_t n = 2048;
-    const size_t k = 512;
-    const size_t m = 1024;
+    const size_t k = 1024;
+    const size_t m = 2048;
+//    const size_t n = 2048;
+//    const size_t k = 512;
+//    const size_t m = 1024;
 
     float *matrix1 = generateMatrix(n, k);
     float *matrix2 = generateMatrix(k, m);

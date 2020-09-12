@@ -1,0 +1,6 @@
+#ifndef OPENCL_HOMEWORKS_OPENCL_PREFIX_SUM_H
+#define OPENCL_HOMEWORKS_OPENCL_PREFIX_SUM_H
+
+float *prefixSumOpenCL(float const *vector, size_t n);
+
+#endif //OPENCL_HOMEWORKS_OPENCL_PREFIX_SUM_H

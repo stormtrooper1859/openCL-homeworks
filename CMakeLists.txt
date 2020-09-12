@@ -9,3 +9,5 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 
 add_subdirectory (matrix_multiplication)
+
+add_subdirectory (prefix_sum)

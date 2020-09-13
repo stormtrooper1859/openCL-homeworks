@@ -188,7 +188,7 @@ cl_mem prefixSumOpenCLInner(struct prefixSumOpenCLInnerProps *props, cl_mem *buf
     }
 
 //    errCode = clWaitForEvents(1, &event);
-//    add_time(event);
+    add_time(event);
 
     if (n <= TILE_SIZE) {
         return *buffer_in;

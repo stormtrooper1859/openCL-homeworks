@@ -22,8 +22,8 @@ int main() {
 //    const size_t n = 2049;
 //    const size_t n = 1024;
 //    const size_t n = 1024 * 1024 * 10; // 325 ms
-//    const size_t n = 1024 * 1024 * 64; // 325 ms
-    const size_t n = 1024 * 1024 * 128; // 707 ms
+    const size_t n = 1024 * 1024 * 64; // 325 ms
+//    const size_t n = 1024 * 1024 * 128; // 707 ms
 
     float *vector = generateMatrix(n, 1);
 

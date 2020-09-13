@@ -16,9 +16,12 @@ do {                                                \
 } while (0)
 #endif
 
-const size_t sizeX = 32;
-const size_t sizeY = 32;
-const size_t itemPerThread = 8;
+//const size_t sizeX = 32;
+//const size_t sizeY = 32;
+//const size_t itemPerThread = 8;
+
+const size_t TILE_SIZE = 1024;
+//const size_t TILE_SIZE = 1024;
 
 #ifdef DEBUG
 #ifndef DEBUG_PRINT
@@ -30,6 +33,8 @@ do {                    \
 #else
 #define DEBUG_PRINT(s)
 #endif
+
+cl_ulong total_time = 0;
 
 cl_platform_id *getPreferredPlatform() {
     cl_int errCode;
@@ -100,6 +105,179 @@ cl_device_id *getPreferredDevice() {
     return deviceIds;
 }
 
+
+void add_time(cl_event event) {
+    cl_int errCode;
+
+    errCode = clWaitForEvents(1, &event);
+    if (errCode != 0) {
+        printf("clWaitForEvents errCode %d\n", errCode);
+        return;
+    }
+
+
+    cl_ulong begin;
+    cl_ulong end;
+    size_t tmp;
+    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &begin, &tmp);
+    if (errCode != 0) {
+        printf("clGetEventProfilingInfo1 errCode %d\n", errCode);
+        return;
+    }
+    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, &tmp);
+    if (errCode != 0) {
+        printf("clGetEventProfilingInfo2 errCode %d\n", errCode);
+        return;
+    }
+
+    total_time += end - begin;
+
+//    printf("Time: %lldms\n", (end - begin) / 1000000);
+
+}
+
+
+struct prefixSumOpenCLInnerProps {
+    cl_kernel kernelPrefix;
+    cl_kernel kernelAdd;
+    cl_command_queue commandQueue;
+    cl_context context;
+};
+
+// cl_mem buffer1
+// cl_kernel kernel
+// cl_command_queue commandQueue
+// size_t n
+cl_mem prefixSumOpenCLInner(struct prefixSumOpenCLInnerProps *props, cl_mem *buffer_in, size_t n) {
+    cl_int errCode;
+
+    cl_mem buffer3 = clCreateBuffer(props->context, CL_MEM_READ_WRITE, sizeof(float) * n, NULL, &errCode);
+
+    errCode = clSetKernelArg(props->kernelPrefix, 0, sizeof(cl_mem), buffer_in);
+    if (errCode != 0) {
+        printf("clSetKernelArg1 errCode %d\n", errCode);
+        return NULL;
+    }
+
+    errCode = clSetKernelArg(props->kernelPrefix, 1, sizeof(cl_mem), &buffer3);
+    if (errCode != 0) {
+        printf("clSetKernelArg2 errCode %d\n", errCode);
+        return NULL;
+    }
+
+    errCode = clSetKernelArg(props->kernelPrefix, 2, sizeof(int), &n);
+    if (errCode != 0) {
+        printf("clSetKernelArg3 errCode %d\n", errCode);
+        return NULL;
+    }
+
+    cl_event event;
+
+    size_t ds = n;
+    if(ds % TILE_SIZE != 0) {
+        ds = ds - ds % TILE_SIZE + TILE_SIZE;
+    }
+
+    size_t dimSize[1] = {ds};
+    size_t zero[1] = {0};
+    size_t dimLocal[1] = {TILE_SIZE};
+    errCode = clEnqueueNDRangeKernel(props->commandQueue, props->kernelPrefix, 1, NULL, dimSize, dimLocal, 0, 0, &event);
+    if (errCode != 0) {
+        printf("clEnqueueNDRangeKernel1 errCode %d\n", errCode);
+        return NULL;
+    }
+
+//    errCode = clWaitForEvents(1, &event);
+//    add_time(event);
+
+    if (n <= TILE_SIZE) {
+        return *buffer_in;
+    }
+
+    // calc
+    int nn = (n / TILE_SIZE) + (n % TILE_SIZE ? 1 : 0);
+    cl_mem calculated = prefixSumOpenCLInner(props, &buffer3, nn);
+
+
+    errCode = clSetKernelArg(props->kernelAdd, 0, sizeof(cl_mem), buffer_in);
+    if (errCode != 0) {
+        printf("clSetKernelArg4 errCode %d\n", errCode);
+        return NULL;
+    }
+
+    errCode = clSetKernelArg(props->kernelAdd, 1, sizeof(cl_mem), &calculated);
+    if (errCode != 0) {
+        printf("clSetKernelArg5 errCode %d\n", errCode);
+        return NULL;
+    }
+
+    errCode = clSetKernelArg(props->kernelAdd, 2, sizeof(int), &n);
+    if (errCode != 0) {
+        printf("clSetKernelArg6 errCode %d\n", errCode);
+        return NULL;
+    }
+
+    cl_event event2;
+//    size_t dimSize2[1] = {n};
+//    size_t dimLocal2[1] = {TILE_SIZE};
+    errCode = clEnqueueNDRangeKernel(props->commandQueue, props->kernelAdd, 1, NULL, dimSize, dimLocal, 0, 0, &event2);
+    if (errCode != 0) {
+        printf("clEnqueueNDRangeKernel2 errCode %d\n", errCode);
+        return NULL;
+    }
+
+    add_time(event2);
+
+//    float *shit = (float *) malloc(nn * sizeof(float));
+//
+//    errCode = clEnqueueReadBuffer(props->commandQueue, buffer3, 1, 0, sizeof(float) * nn, shit, 0, 0, 0);
+//    if (errCode != 0) {
+//        printf("Enqueue read buffer errCode %d\n", errCode);
+//        return NULL;
+//    }
+//
+//    printf("shit: ");
+//    for (int i = 0; i < nn; i++){
+//        printf("%f ", shit[i]);
+//    }
+//    printf("\n");
+
+    return *buffer_in;
+
+
+
+
+
+//    if (errCode != 0) {
+//        printf("clWaitForEvents errCode %d\n", errCode);
+//        return NULL;
+//    }
+//
+//
+//    cl_ulong begin;
+//    cl_ulong end;
+//    size_t tmp;
+//    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &begin, &tmp);
+//    if (errCode != 0) {
+//        printf("clGetEventProfilingInfo1 errCode %d\n", errCode);
+//        return NULL;
+//    }
+//    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, &tmp);
+//    if (errCode != 0) {
+//        printf("clGetEventProfilingInfo2 errCode %d\n", errCode);
+//        return NULL;
+//    }
+//
+//    printf("Time: %lldms\n", (end - begin) / 1000000);
+//
+//    double flps = ((double) n) / ((double) end - begin);
+//    printf("%.6f GFlops\n", flps);
+
+
+//    return buffer3;
+}
+
+
 float *prefixSumOpenCL(float const *vector, size_t n) {
     cl_int errCode;
 
@@ -125,13 +303,6 @@ float *prefixSumOpenCL(float const *vector, size_t n) {
     size_t programSize = 0;
     const char *programSource = readFile("./prefix_sum.cl", &programSize);
 
-
-//    printf("code: %s\n", program);
-//    printf("program_size: %zu\n", programSize);
-
-
-
-//    const char * constprogram = (const char *)program;
     cl_program clProg = clCreateProgramWithSource(context, 1, &programSource, &programSize, &errCode);
     if (errCode != 0) {
         printf("CreateProgramWithSource errCode %d\n", errCode);
@@ -139,7 +310,7 @@ float *prefixSumOpenCL(float const *vector, size_t n) {
     }
 
     char *buildOptions = (char *) calloc(1, 1000 * sizeof(char));
-    sprintf(buildOptions, "-D SIZE=%Iu", n);
+    sprintf(buildOptions, "-D SIZE=%Iu", TILE_SIZE);
 
     printf("buildOptions: %s\n", buildOptions);
 
@@ -156,55 +327,25 @@ float *prefixSumOpenCL(float const *vector, size_t n) {
     printf("Compiler response: %s\n", buildInfoLog);
 
 
-    const char add[] = "prefix_sum";
+    const char prefix_sum_string[] = "prefix_sum";
     errCode = 0;
-    cl_kernel kernel = clCreateKernel(clProg, add, &errCode);
+    cl_kernel kernelPrefixSum = clCreateKernel(clProg, prefix_sum_string, &errCode);
     if (errCode != 0) {
         printf("Kernel errCode %d\n", errCode);
         return NULL;
     }
-    int a = CL_INVALID_KERNEL;
-    size_t kernelWorkGroupSize;
-    size_t actualKernelWorkGroupSizeBytes;
-    errCode = clGetKernelWorkGroupInfo(kernel, deviceIds[numOfDevice], CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t),
-                                       &kernelWorkGroupSize, &actualKernelWorkGroupSizeBytes);
-    size_t kernelPreferredWorkGroupSizeMultipe;
-    size_t actualKernelPreferredWorkGroupSizeMultipe;
-    errCode = clGetKernelWorkGroupInfo(kernel, deviceIds[numOfDevice], CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
-                                       sizeof(size_t),
-                                       &kernelPreferredWorkGroupSizeMultipe,
-                                       &actualKernelPreferredWorkGroupSizeMultipe);
-    cl_ulong kernelLocalMemSize;
-    long long actualKernelLocalMemSize;
-    errCode = clGetKernelWorkGroupInfo(kernel, deviceIds[numOfDevice], CL_KERNEL_LOCAL_MEM_SIZE, sizeof(long long),
-                                       &kernelLocalMemSize, &actualKernelLocalMemSize);
-    printf("GetKernelWorkGroupInfo errCode %d\n", errCode);
+
+    const char add_to_blocks_string[] = "add_to_blocks";
+    errCode = 0;
+    cl_kernel kernelAddToBlocks = clCreateKernel(clProg, add_to_blocks_string, &errCode);
     if (errCode != 0) {
+        printf("Kernel errCode %d\n", errCode);
         return NULL;
     }
-//    printf("KernelWorkSize: %lu\n", kernelWorkGroupSize);
-//    printf("KernelLocalMemSize: %llu\n", kernelLocalMemSize);
-//    printf("KernelPreferredWorkGroupSizeMultipe: %lu\n", kernelPreferredWorkGroupSizeMultipe);
 
 
-
-
-
-
-
-    float *matrix3 = (float *) malloc(n * sizeof(float));
-
-
-    cl_mem buffer1 = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * n, NULL, &errCode);
-    if (errCode != 0) {
-        printf("Buffer1 errCode %d\n", errCode);
-        return NULL;
-    }
-    cl_mem buffer3 = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) * n, NULL, &errCode);
-    if (errCode != 0) {
-        printf("Buffer3 errCode %d\n", errCode);
-        return NULL;
-    }
+    cl_mem buffer1 = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * n, NULL, &errCode);
+//    cl_mem buffer3 = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) * n, NULL, &errCode);
 
 
     errCode = clEnqueueWriteBuffer(commandQueue, buffer1, 1, 0, sizeof(float) * n, vector, 0, 0, 0);
@@ -213,23 +354,38 @@ float *prefixSumOpenCL(float const *vector, size_t n) {
         return NULL;
     }
 
+    struct prefixSumOpenCLInnerProps props;
+    props.kernelPrefix = kernelPrefixSum;
+    props.kernelAdd = kernelAddToBlocks;
+    props.commandQueue = commandQueue;
+    props.context = context;
 
-    errCode = clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer1);
-    errCode = clSetKernelArg(kernel, 1, sizeof(cl_mem), &buffer3);
-    errCode = clSetKernelArg(kernel, 2, sizeof(int), &n);
+    cl_mem buffer3 = prefixSumOpenCLInner(&props, &buffer1, n);
 
-
-    cl_event event;
-    //    size_t aaa = arrLen;
-//    size_t dimSize[1] = {(size_t) n};
-    size_t dimSize[1] = {n};
-    size_t zero[1] = {0};
-    size_t dimLocal[1] = {n};
-    errCode = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, dimSize, dimLocal, 0, 0, &event);
-    if (errCode != 0) {
-        printf("clEnqueueNDRangeKernel errCode %d\n", errCode);
+    if (buffer3 == NULL) {
         return NULL;
     }
+
+//    errCode = clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer1);
+//    errCode = clSetKernelArg(kernel, 1, sizeof(cl_mem), &buffer3);
+//    errCode = clSetKernelArg(kernel, 2, sizeof(int), &n);
+//
+//
+//    cl_event event;
+//    //    size_t aaa = arrLen;
+////    size_t dimSize[1] = {(size_t) n};
+//    size_t dimSize[1] = {n};
+//    size_t zero[1] = {0};
+//    size_t dimLocal[1] = {n};
+//    errCode = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, dimSize, dimLocal, 0, 0, &event);
+//    if (errCode != 0) {
+//        printf("clEnqueueNDRangeKernel errCode %d\n", errCode);
+//        return NULL;
+//    }
+
+
+
+    float *matrix3 = (float *) malloc(n * sizeof(float));
 
     errCode = clEnqueueReadBuffer(commandQueue, buffer3, 1, 0, sizeof(float) * n, matrix3, 0, 0, 0);
     if (errCode != 0) {
@@ -238,58 +394,39 @@ float *prefixSumOpenCL(float const *vector, size_t n) {
     }
 
 
-    //    int rr = 0;
-    //    for (int i = 0; i < arrLen; i++){
-    //        rr += c[i];
-    //    }
-//    printf("Result: %f\n", matrix3[0]);
-    //    printMatrix(matrix1, n, k);
-    //    printMatrix(matrix2, k, m);
-    //    printMatrix(matrix3, n, m);
 
 
 
-    cl_ulong begin;
-    cl_ulong end;
-    size_t tmp;
-    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &begin, &tmp);
-    if (errCode != 0) {
-        printf("clGetEventProfilingInfo1 errCode %d\n", errCode);
-        return NULL;
-    }
-    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, &tmp);
-    if (errCode != 0) {
-        printf("clGetEventProfilingInfo2 errCode %d\n", errCode);
-        return NULL;
-    }
 
-    printf("Time: %lldms\n", (end - begin) / 1000000);
-//    printf("Time begin: %lldms\n", begin);
-//    printf("Time end: %lldms\n", end);
 
-    double flps = ((double) n ) / ((double) end - begin);
-    printf("%.6f GFlops\n", flps);
 
-    errCode = clReleaseKernel(kernel);
-    if (errCode != 0) {
-        printf("Release kernel errCode %d\n", errCode);
-        return NULL;
-    }
+//    cl_ulong begin;
+//    cl_ulong end;
+//    size_t tmp;
+//    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &begin, &tmp);
+//    if (errCode != 0) {
+//        printf("clGetEventProfilingInfo1 errCode %d\n", errCode);
+//        return NULL;
+//    }
+//    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, &tmp);
+//    if (errCode != 0) {
+//        printf("clGetEventProfilingInfo2 errCode %d\n", errCode);
+//        return NULL;
+//    }
+//
+//    printf("Time: %lldms\n", (end - begin) / 1000000);
+//
+//    double flps = ((double) n ) / ((double) end - begin);
+//    printf("%.6f GFlops\n", flps);
+
+//    errCode = clReleaseKernel(kernel);
+
+
+    printf("Time: %lldms\n", total_time / 1000000);
+
     errCode = clReleaseProgram(clProg);
-    if (errCode != 0) {
-        printf("Release program errCode %d\n", errCode);
-        return NULL;
-    }
     errCode = clReleaseCommandQueue(commandQueue);
-    if (errCode != 0) {
-        printf("Release commandQueue errCode %d\n", errCode);
-        return NULL;
-    }
     errCode = clReleaseContext(context);
-    if (errCode != 0) {
-        printf("Release context errCode %d\n", errCode);
-        return NULL;
-    }
 
 
     end:

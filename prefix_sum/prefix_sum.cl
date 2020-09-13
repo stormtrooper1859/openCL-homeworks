@@ -1,11 +1,18 @@
-__kernel void prefix_sum(global const float *a, global float *c, uint N) {
+__kernel void prefix_sum(global float *a, global float *c, uint N) {
     uint global_X = get_global_id(0);
-//    uint local_X = get_local_id(0);
+    uint local_X = get_local_id(0);
 
     local float temp[SIZE * 2];
 
-    temp[global_X] = a[global_X];
-    temp[SIZE + global_X] = temp[global_X];
+
+    if(global_X > N) {
+        temp[local_X] = 0;
+        temp[SIZE + local_X] = 0;
+    }else{
+
+        temp[local_X] = a[global_X];
+        temp[SIZE + local_X] = temp[local_X];
+    }
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -13,9 +20,9 @@ __kernel void prefix_sum(global const float *a, global float *c, uint N) {
     int pos2 = SIZE;
 
     for (int result = 1; result < N; result *= 2) {
-        temp[pos2 + global_X] = temp[pos1 + global_X];
-        if (result <= global_X) {
-            temp[pos2 + global_X] += temp[pos1 + global_X - result];
+        temp[pos2 + local_X] = temp[pos1 + local_X];
+        if (result <= local_X) {
+            temp[pos2 + local_X] += temp[pos1 + local_X - result];
         }
 
         pos1 = pos2;
@@ -24,10 +31,25 @@ __kernel void prefix_sum(global const float *a, global float *c, uint N) {
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    c[global_X] = temp[pos1 + global_X];
+    a[global_X] = temp[pos1 + local_X];
+    if (local_X == SIZE - 1) {
+//        printf("wtf1 %f %d\n", temp[pos1 + local_X], global_X / SIZE);
+        c[global_X / SIZE] = temp[pos1 + local_X];
+    }
 }
 
 
+__kernel void add_to_blocks(global float *a, global float *c, uint N) {
+    uint global_X = get_global_id(0);
+
+    uint ind = get_group_id(0);
+
+    if (ind > 0 && global_X < N) {
+        float t = c[ind - 1];
+//        printf("wtf %f\n", t);
+        a[global_X] += t;
+    }
+}
 
 
 //__kernel void matrix_mul(global const float *a, global float *c, uint N) {

@@ -19,18 +19,16 @@ void printMatrix(float *matrix, int n, int m) {
 int main() {
     srand(time(0));
 
-    const size_t n = 1024;
+//    const size_t n = 2049;
+//    const size_t n = 1024;
+//    const size_t n = 1024 * 1024 * 10; // 325 ms
 //    const size_t n = 1024 * 1024 * 64; // 325 ms
-//    const size_t n = 1024 * 1024 * 128; // 707 ms
+    const size_t n = 1024 * 1024 * 128; // 707 ms
 
     float *vector = generateMatrix(n, 1);
 
-//    printMatrix(vector, 1, n);
-
-    float *vectorResultCL = NULL;
-//    float *vectorResultCL = prefixSumOpenCL(vector, n);
-
-//    printMatrix(vectorResultCL, 1, n);
+//    float *vectorResultCL = NULL;
+    float *vectorResultCL = prefixSumOpenCL(vector, n);
 
     clock_t begin_calculation = clock();
 
@@ -38,9 +36,14 @@ int main() {
 
     float *vectorResult = prefixSum(vector, n);
 
+    clock_t end_calculation = clock();
+
+
+//    printMatrix(vector, 1, n);
+//    printMatrix(vectorResultCL, 1, n);
 //    printMatrix(vectorResult, 1, n);
 
-    clock_t end_calculation = clock();
+
 
     float stat1 = (float) (end_calculation - begin_calculation) / CLOCKS_PER_SEC * MILLIS_IN_SECOND;
     printf("%.0fms\n", stat1);

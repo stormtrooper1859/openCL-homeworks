@@ -52,8 +52,9 @@ int main() {
 //    printMatrix(vectorResultCL, 1, n);
 //    printMatrix(vectorResult, 1, n);
 
-
-    printf("%0.6f %0.6f\n", vectorResultCL[n-1], vectorResult[n-1]);
+    if (vectorResultCL != NULL && vectorResult != NULL) {
+        printf("%0.6f %0.6f\n", vectorResultCL[n-1], vectorResult[n-1]);
+    }
 
     float stat1 = (float) (end_calculation - begin_calculation) / CLOCKS_PER_SEC * MILLIS_IN_SECOND;
     printf("%.0fms\n", stat1);

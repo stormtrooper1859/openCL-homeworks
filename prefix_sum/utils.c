@@ -80,24 +80,22 @@ int matrixCompare(float const *matrix1, float const *matrix2, int a, int b) {
 
 
 char *readFile(char const *fileName, size_t *programSize) {
-    // TODO сделать нормальное чтение
     FILE *fp = fopen(fileName, "r");
     if (fp == NULL) {
-        perror("Error while opening the file.\n");
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "Error while opening file: %s\n", fileName);
+        return NULL;
     }
 
     fseek(fp, 0L, SEEK_END);
     size_t fileSize = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    char *program = (char *) malloc(fileSize * sizeof(char) + 2);
-    char ch = 0;
+    char *program = (char *) malloc(sizeof(char) * (fileSize + 2));
+    char ch;
     *programSize = 0;
     while ((ch = fgetc(fp)) != EOF) {
         program[(*programSize)++] = ch;
     }
-    program[*programSize] = 0;
-    (*programSize)++;
+    program[(*programSize)++] = 0;
     fclose(fp);
     return program;
 }

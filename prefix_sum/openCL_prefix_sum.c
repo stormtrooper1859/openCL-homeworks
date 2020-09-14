@@ -9,19 +9,13 @@
 do {                                                \
     if ((result) < 0)                               \
     {                                               \
-        fprintf(stderr, "%s: %d", intro, result);   \
-        exit_code = -1;                             \
+        fprintf(stderr, "%s error code: %d\n", intro, result);   \
         goto exit_label;                            \
     }                                               \
 } while (0)
 #endif
 
-//const size_t sizeX = 32;
-//const size_t sizeY = 32;
-//const size_t itemPerThread = 8;
-
-const size_t TILE_SIZE = 1024;
-//const size_t TILE_SIZE = 1024;
+const size_t LOCAL_GROUP_SIZE = 1024;
 
 #ifdef DEBUG
 #ifndef DEBUG_PRINT
@@ -36,7 +30,11 @@ do {                    \
 
 cl_ulong total_time = 0;
 
-cl_platform_id *getPreferredPlatform() {
+//struct DeviceInfo {
+//
+//};
+
+cl_platform_id *getPreferredDevice() {
     cl_int errCode;
     cl_uint platformsNum;
     errCode = clGetPlatformIDs(0, NULL, &platformsNum);
@@ -68,13 +66,6 @@ cl_platform_id *getPreferredPlatform() {
 //                                &clPlatformNameSize);
 //    DEBUG_PRINT(printf("Platform %d: %d %s\n", 0, errCode, clPlatformName));
 
-    return platforms;
-}
-
-cl_device_id *getPreferredDevice() {
-    cl_platform_id *platforms = getPreferredPlatform();
-
-    cl_int errCode;
     cl_uint deviceNums;
     errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceNums);
     DEBUG_PRINT(printf("DevicesNums: %d %d\n", errCode, deviceNums));
@@ -142,84 +133,54 @@ struct prefixSumOpenCLInnerProps {
     cl_kernel kernelAdd;
     cl_command_queue commandQueue;
     cl_context context;
+    size_t tile_size;
 };
 
-// cl_mem buffer1
-// cl_kernel kernel
-// cl_command_queue commandQueue
-// size_t n
-cl_mem prefixSumOpenCLInner(struct prefixSumOpenCLInnerProps *props, cl_mem *buffer_in, size_t n) {
+
+cl_mem prefixSumOpenCLInner(struct prefixSumOpenCLInnerProps *props, cl_mem buffer_data, size_t n) {
     cl_int errCode;
 
-    cl_mem buffer3 = clCreateBuffer(props->context, CL_MEM_READ_WRITE, sizeof(float) * n, NULL, &errCode);
-
-    errCode = clSetKernelArg(props->kernelPrefix, 0, sizeof(cl_mem), buffer_in);
-    if (errCode != 0) {
-        printf("clSetKernelArg1 errCode %d\n", errCode);
-        return NULL;
+    size_t work_size = n;
+    if (work_size % props->tile_size != 0) {
+        work_size = work_size - work_size % props->tile_size + props->tile_size;
     }
 
-    errCode = clSetKernelArg(props->kernelPrefix, 1, sizeof(cl_mem), &buffer3);
-    if (errCode != 0) {
-        printf("clSetKernelArg2 errCode %d\n", errCode);
-        return NULL;
-    }
+    cl_mem buffer_blocks_sum = clCreateBuffer(props->context, CL_MEM_READ_WRITE,
+                                              sizeof(float) * (work_size / props->tile_size), NULL, &errCode);
 
+    errCode = clSetKernelArg(props->kernelPrefix, 0, sizeof(cl_mem), &buffer_data);
+    errCode = clSetKernelArg(props->kernelPrefix, 1, sizeof(cl_mem), &buffer_blocks_sum);
     errCode = clSetKernelArg(props->kernelPrefix, 2, sizeof(int), &n);
-    if (errCode != 0) {
-        printf("clSetKernelArg3 errCode %d\n", errCode);
-        return NULL;
-    }
 
     cl_event event;
 
-    size_t ds = n;
-    if(ds % TILE_SIZE != 0) {
-        ds = ds - ds % TILE_SIZE + TILE_SIZE;
-    }
 
-    size_t dimSize[1] = {ds};
+    size_t dimSize[1] = {work_size};
     size_t zero[1] = {0};
-    size_t dimLocal[1] = {TILE_SIZE};
-    errCode = clEnqueueNDRangeKernel(props->commandQueue, props->kernelPrefix, 1, NULL, dimSize, dimLocal, 0, 0, &event);
+    size_t dimLocal[1] = {props->tile_size};
+    errCode = clEnqueueNDRangeKernel(props->commandQueue, props->kernelPrefix, 1, NULL, dimSize, dimLocal, 0, 0,
+                                     &event);
     if (errCode != 0) {
         printf("clEnqueueNDRangeKernel1 errCode %d\n", errCode);
         return NULL;
     }
 
-//    errCode = clWaitForEvents(1, &event);
     add_time(event);
 
-    if (n <= TILE_SIZE) {
-        return *buffer_in;
+    if (n <= props->tile_size) {
+        return buffer_data;
     }
 
     // calc
-    int nn = (n / TILE_SIZE) + (n % TILE_SIZE ? 1 : 0);
-    cl_mem calculated = prefixSumOpenCLInner(props, &buffer3, nn);
+    unsigned int nn = (n / props->tile_size) + (n % props->tile_size ? 1 : 0);
+    cl_mem calculated = prefixSumOpenCLInner(props, buffer_blocks_sum, nn);
 
 
-    errCode = clSetKernelArg(props->kernelAdd, 0, sizeof(cl_mem), buffer_in);
-    if (errCode != 0) {
-        printf("clSetKernelArg4 errCode %d\n", errCode);
-        return NULL;
-    }
-
+    errCode = clSetKernelArg(props->kernelAdd, 0, sizeof(cl_mem), &buffer_data);
     errCode = clSetKernelArg(props->kernelAdd, 1, sizeof(cl_mem), &calculated);
-    if (errCode != 0) {
-        printf("clSetKernelArg5 errCode %d\n", errCode);
-        return NULL;
-    }
-
     errCode = clSetKernelArg(props->kernelAdd, 2, sizeof(int), &n);
-    if (errCode != 0) {
-        printf("clSetKernelArg6 errCode %d\n", errCode);
-        return NULL;
-    }
 
     cl_event event2;
-//    size_t dimSize2[1] = {n};
-//    size_t dimLocal2[1] = {TILE_SIZE};
     errCode = clEnqueueNDRangeKernel(props->commandQueue, props->kernelAdd, 1, NULL, dimSize, dimLocal, 0, 0, &event2);
     if (errCode != 0) {
         printf("clEnqueueNDRangeKernel2 errCode %d\n", errCode);
@@ -228,53 +189,86 @@ cl_mem prefixSumOpenCLInner(struct prefixSumOpenCLInnerProps *props, cl_mem *buf
 
     add_time(event2);
 
-//    float *shit = (float *) malloc(nn * sizeof(float));
-//
-//    errCode = clEnqueueReadBuffer(props->commandQueue, buffer3, 1, 0, sizeof(float) * nn, shit, 0, 0, 0);
-//    if (errCode != 0) {
-//        printf("Enqueue read buffer errCode %d\n", errCode);
-//        return NULL;
-//    }
-//
-//    printf("shit: ");
-//    for (int i = 0; i < nn; i++){
-//        printf("%f ", shit[i]);
-//    }
-//    printf("\n");
+    clReleaseMemObject(buffer_blocks_sum);
 
-    return *buffer_in;
+    return buffer_data;
+}
 
 
+struct prefixSumOpenCLInnerProps *getContext(cl_device_id *deviceIds) {
+    cl_int errCode;
+    struct prefixSumOpenCLInnerProps *props = NULL;
+
+    const int numOfDevice = 0;
+    cl_uint deviceNumbers = 1;
+
+    cl_context context = clCreateContext(NULL, deviceNumbers, deviceIds + numOfDevice, NULL, NULL, &errCode);
+    CHECK_ERR("clCreateContext", errCode, exit);
+
+    cl_command_queue commandQueue = clCreateCommandQueue(context, deviceIds[numOfDevice], CL_QUEUE_PROFILING_ENABLE,
+                                                         &errCode);
+    CHECK_ERR("clCreateCommandQueue", errCode, release_context);
 
 
+    size_t programSize = 0;
+    const char *programSource = readFile("./prefix_sum.cl", &programSize);
 
-//    if (errCode != 0) {
-//        printf("clWaitForEvents errCode %d\n", errCode);
-//        return NULL;
-//    }
-//
-//
-//    cl_ulong begin;
-//    cl_ulong end;
-//    size_t tmp;
-//    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &begin, &tmp);
-//    if (errCode != 0) {
-//        printf("clGetEventProfilingInfo1 errCode %d\n", errCode);
-//        return NULL;
-//    }
-//    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, &tmp);
-//    if (errCode != 0) {
-//        printf("clGetEventProfilingInfo2 errCode %d\n", errCode);
-//        return NULL;
-//    }
-//
-//    printf("Time: %lldms\n", (end - begin) / 1000000);
-//
-//    double flps = ((double) n) / ((double) end - begin);
-//    printf("%.6f GFlops\n", flps);
+    cl_program program = clCreateProgramWithSource(context, 1, &programSource, &programSize, &errCode);
+    CHECK_ERR("clCreateProgramWithSource", errCode, release_queue);
+
+    char buildOptions[1000];
+    sprintf(buildOptions, "-D LOCAL_GROUP_SIZE=%Iu -Werror", LOCAL_GROUP_SIZE);
 
 
-//    return buffer3;
+    errCode = clBuildProgram(program, deviceNumbers, deviceIds + numOfDevice, buildOptions, NULL, NULL);
+
+    if (errCode == CL_BUILD_PROGRAM_FAILURE
+        #ifdef DEBUG
+        || errCode == 0
+#endif
+            ) {
+        size_t clBuildInfoLogSize = 0;
+        clGetProgramBuildInfo(program, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);
+        char *buildInfoLog = (char *) malloc(clBuildInfoLogSize * sizeof(char));
+        clGetProgramBuildInfo(program, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, clBuildInfoLogSize, buildInfoLog,
+                              &clBuildInfoLogSize);
+        printf("Compiler response: %s", buildInfoLog);
+        free(buildInfoLog);
+    }
+
+    CHECK_ERR("clBuildProgram", errCode, release_program);
+
+
+    const char prefixSumString[] = "prefix_sum";
+    cl_kernel kernelPrefixSum = clCreateKernel(program, prefixSumString, &errCode);
+    CHECK_ERR("clCreateKernel prefix_sum", errCode, release_program);
+
+    const char addToBlocksString[] = "add_to_blocks";
+    cl_kernel kernelAddToBlocks = clCreateKernel(program, addToBlocksString, &errCode);
+    CHECK_ERR("clCreateKernel add_to_blocks", errCode, release_kernel_prefixSum);
+
+
+    props = (struct prefixSumOpenCLInnerProps *) malloc(
+            sizeof(struct prefixSumOpenCLInnerProps));
+    props->kernelPrefix = kernelPrefixSum;
+    props->kernelAdd = kernelAddToBlocks;
+    props->commandQueue = commandQueue;
+    props->context = context;
+    props->tile_size = LOCAL_GROUP_SIZE;
+
+    goto exit;
+
+    release_kernel_prefixSum:
+    clReleaseKernel(kernelPrefixSum);
+    release_program:
+    clReleaseProgram(program);
+    release_queue:
+    free(programSource);
+    clReleaseCommandQueue(commandQueue);
+    release_context:
+    clReleaseContext(context);
+    exit:
+    return props;
 }
 
 
@@ -283,111 +277,29 @@ float *prefixSumOpenCL(float const *vector, size_t n) {
 
     cl_device_id *deviceIds = getPreferredDevice();
 
-    const int numOfDevice = 0;
+    struct prefixSumOpenCLInnerProps *props = getContext(deviceIds);
 
-    cl_uint numd = 1;
-    cl_context context = clCreateContext(NULL, numd, deviceIds + numOfDevice, NULL, NULL, &errCode);
-    if (errCode != 0) {
-        printf("Context errCode %d\n", errCode);
-        return NULL;
-    }
+    if (props == NULL) return NULL;
 
-    cl_command_queue commandQueue = clCreateCommandQueue(context, deviceIds[numOfDevice], CL_QUEUE_PROFILING_ENABLE,
-                                                         &errCode);
-    if (errCode != 0) {
-        printf("CommandQueue errCode %d\n", errCode);
-        return NULL;
-    }
+    cl_mem buffer_data = clCreateBuffer(props->context, CL_MEM_READ_WRITE, sizeof(float) * n, NULL, &errCode);
 
-
-    size_t programSize = 0;
-    const char *programSource = readFile("./prefix_sum.cl", &programSize);
-
-    cl_program clProg = clCreateProgramWithSource(context, 1, &programSource, &programSize, &errCode);
-    if (errCode != 0) {
-        printf("CreateProgramWithSource errCode %d\n", errCode);
-        return NULL;
-    }
-
-    char *buildOptions = (char *) calloc(1, 1000 * sizeof(char));
-    sprintf(buildOptions, "-D SIZE=%Iu", TILE_SIZE);
-
-    printf("buildOptions: %s\n", buildOptions);
-
-    errCode = clBuildProgram(clProg, 1, deviceIds + numOfDevice, buildOptions, NULL, NULL);
-    if (errCode != 0) {
-        printf("BuildProgram errCode %d\n", errCode);
-//        return NULL;
-    }
-    size_t clBuildInfoLogSize = -1;
-    clGetProgramBuildInfo(clProg, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);
-    char *buildInfoLog = (char *) malloc(clBuildInfoLogSize * sizeof(char));
-    clGetProgramBuildInfo(clProg, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, clBuildInfoLogSize, buildInfoLog,
-                          &clBuildInfoLogSize);
-    printf("Compiler response: %s\n", buildInfoLog);
-
-
-    const char prefix_sum_string[] = "prefix_sum";
-    errCode = 0;
-    cl_kernel kernelPrefixSum = clCreateKernel(clProg, prefix_sum_string, &errCode);
-    if (errCode != 0) {
-        printf("Kernel errCode %d\n", errCode);
-        return NULL;
-    }
-
-    const char add_to_blocks_string[] = "add_to_blocks";
-    errCode = 0;
-    cl_kernel kernelAddToBlocks = clCreateKernel(clProg, add_to_blocks_string, &errCode);
-    if (errCode != 0) {
-        printf("Kernel errCode %d\n", errCode);
-        return NULL;
-    }
-
-
-    cl_mem buffer1 = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * n, NULL, &errCode);
-//    cl_mem buffer3 = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) * n, NULL, &errCode);
-
-
-    errCode = clEnqueueWriteBuffer(commandQueue, buffer1, 1, 0, sizeof(float) * n, vector, 0, 0, 0);
+    errCode = clEnqueueWriteBuffer(props->commandQueue, buffer_data, 1, 0, sizeof(float) * n, vector, 0, 0, 0);
     if (errCode != 0) {
         printf("Enqueue buffer1 errCode %d\n", errCode);
         return NULL;
     }
 
-    struct prefixSumOpenCLInnerProps props;
-    props.kernelPrefix = kernelPrefixSum;
-    props.kernelAdd = kernelAddToBlocks;
-    props.commandQueue = commandQueue;
-    props.context = context;
 
-    cl_mem buffer3 = prefixSumOpenCLInner(&props, &buffer1, n);
+    cl_mem prefixSumBuffer = prefixSumOpenCLInner(props, buffer_data, n);
 
-    if (buffer3 == NULL) {
+    if (prefixSumBuffer == NULL) {
         return NULL;
     }
 
-//    errCode = clSetKernelArg(kernel, 0, sizeof(cl_mem), &buffer1);
-//    errCode = clSetKernelArg(kernel, 1, sizeof(cl_mem), &buffer3);
-//    errCode = clSetKernelArg(kernel, 2, sizeof(int), &n);
-//
-//
-//    cl_event event;
-//    //    size_t aaa = arrLen;
-////    size_t dimSize[1] = {(size_t) n};
-//    size_t dimSize[1] = {n};
-//    size_t zero[1] = {0};
-//    size_t dimLocal[1] = {n};
-//    errCode = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, dimSize, dimLocal, 0, 0, &event);
-//    if (errCode != 0) {
-//        printf("clEnqueueNDRangeKernel errCode %d\n", errCode);
-//        return NULL;
-//    }
 
+    float *prefixSum = (float *) malloc(n * sizeof(float));
 
-
-    float *matrix3 = (float *) malloc(n * sizeof(float));
-
-    errCode = clEnqueueReadBuffer(commandQueue, buffer3, 1, 0, sizeof(float) * n, matrix3, 0, 0, 0);
+    errCode = clEnqueueReadBuffer(props->commandQueue, prefixSumBuffer, 1, 0, sizeof(float) * n, prefixSum, 0, 0, 0);
     if (errCode != 0) {
         printf("Enqueue read buffer errCode %d\n", errCode);
         return NULL;
@@ -424,12 +336,12 @@ float *prefixSumOpenCL(float const *vector, size_t n) {
 
     printf("Time: %lldms\n", total_time / 1000000);
 
-    errCode = clReleaseProgram(clProg);
-    errCode = clReleaseCommandQueue(commandQueue);
-    errCode = clReleaseContext(context);
+//    errCode = clReleaseProgram(clProg);
+//    errCode = clReleaseCommandQueue(commandQueue);
+//    errCode = clReleaseContext(context);
 
 
     end:
-    return matrix3;
+    return prefixSum;
 }
 

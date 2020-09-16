@@ -4,10 +4,6 @@
 #include "utils.h"
 
 
-void hello() {
-    printf("Hello, world!\n");
-}
-
 static unsigned long xorshf96_x = 123456789, xorshf96_y = 362436069, xorshf96_z = 521288629;
 
 unsigned long rng(void) {

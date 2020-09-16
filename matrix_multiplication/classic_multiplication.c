@@ -4,16 +4,16 @@
 #include "classic_multiplication.h"
 
 
-float *matrixMul(float const *matrix1, float const *matrix2, int n, int m, int p) {
-    float *resultMatrix = (float *) malloc(n * p * sizeof(float));
+float *matrixMul(float const *matrix1, float const *matrix2, int n, int k, int m) {
+    float *resultMatrix = (float *) malloc(n * m * sizeof(float));
 
     for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < p; ++j) {
+        for (int j = 0; j < m; ++j) {
             float res = 0;
-            for (int k = 0; k < m; ++k) {
-                res += matrix1[i * m + k] * matrix2[k * p + j];
+            for (int l = 0; l < k; ++l) {
+                res += matrix1[i * k + l] * matrix2[l * m + j];
             }
-            resultMatrix[i * p + j] = res;
+            resultMatrix[i * m + j] = res;
         }
     }
 
@@ -21,10 +21,10 @@ float *matrixMul(float const *matrix1, float const *matrix2, int n, int m, int p
 }
 
 
-float *matrixMulMP(float const *matrix1, float const *matrix2, int n, int m, int p) {
-    float *resultMatrix = (float *) malloc(n * p * sizeof(float));
+float *matrixMulMP(float const *matrix1, float const *matrix2, int n, int k, int m) {
+    float *resultMatrix = (float *) malloc(n * m * sizeof(float));
 
-    float *matrix2T = getTransposedMatrix(matrix2, m, p);
+    float *matrix2T = getTransposedMatrix(matrix2, k, m);
 
 #pragma omp parallel
     {
@@ -32,12 +32,12 @@ float *matrixMulMP(float const *matrix1, float const *matrix2, int n, int m, int
         // вычисления на транспонированной матрице
 #pragma omp for schedule(static, 1)
         for (i = 0; i < n; i++) {
-            for (int j = 0; j < p; j++) {
+            for (int j = 0; j < m; j++) {
                 float tt = 0;
-                for (int k = 0; k < m; k++) {
-                    tt += matrix1[i * m + k] * matrix2T[j * m + k];
+                for (int l = 0; l < k; l++) {
+                    tt += matrix1[i * k + l] * matrix2T[j * k + l];
                 }
-                resultMatrix[i * p + j] = tt;
+                resultMatrix[i * m + j] = tt;
             }
         }
 

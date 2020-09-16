@@ -4,29 +4,8 @@
 #include "openCL_prefix_sum.h"
 #include "utils.h"
 
-#ifndef CHECK_ERR
-#define CHECK_ERR(intro, result, exit_label)        \
-do {                                                \
-    if ((result) < 0)                               \
-    {                                               \
-        fprintf(stderr, "%s error code: %d\n", intro, result);   \
-        goto exit_label;                            \
-    }                                               \
-} while (0)
-#endif
 
 const size_t LOCAL_GROUP_SIZE = 1024;
-
-#ifdef DEBUG
-#ifndef DEBUG_PRINT
-#define DEBUG_PRINT(s)  \
-do {                    \
-    s;                  \
-} while (0)
-#endif
-#else
-#define DEBUG_PRINT(s)
-#endif
 
 //struct DeviceInfo {
 //
@@ -151,7 +130,7 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id *deviceIds) {
     }
 
     CHECK_ERR("clBuildProgram", errCode, release_program);
-    DEBUG_PRINT(printf("Program has been built successfully"));
+    DEBUG_PRINT(printf("Program has been built successfully\n"));
 
 
     const char prefixSumString[] = "prefix_sum";
@@ -242,7 +221,7 @@ cl_int prefixSumOpenCLInner(struct PrefixSumContext *prefixSumContext, cl_mem bu
 }
 
 // +
-void printExecutionTimeInfo(struct PrefixSumContext *prefixSumContext) {
+cl_ulong printExecutionTimeInfo(struct PrefixSumContext *prefixSumContext) {
     cl_int errCode;
     cl_ulong total_time = 0;
 
@@ -263,10 +242,8 @@ void printExecutionTimeInfo(struct PrefixSumContext *prefixSumContext) {
         total_time += end - begin;
     }
 
-    printf("Time: %.1fms\n", total_time / 1e6);
-
     end:
-    return;
+    return total_time;
 };
 
 
@@ -296,8 +273,8 @@ float *prefixSumOpenCL(float const *inputData, size_t inputDataSize) {
     CHECK_ERR("clEnqueueWriteBuffer input data", errCode, release_data_buffer);
 
 
-    cl_int prefixSumBuffer = prefixSumOpenCLInner(prefixSumContext, dataBuffer, inputDataSize);
-    if (prefixSumBuffer != 0) {
+    errCode = prefixSumOpenCLInner(prefixSumContext, dataBuffer, inputDataSize);
+    if (errCode != 0) {
         goto release_data_buffer;
     }
 
@@ -309,7 +286,8 @@ float *prefixSumOpenCL(float const *inputData, size_t inputDataSize) {
     CHECK_ERR("clEnqueueReadBuffer result data", errCode, release_prefix_sum);
 
 
-    printExecutionTimeInfo(prefixSumContext);
+    cl_ulong total_time = printExecutionTimeInfo(prefixSumContext);
+    printf("Time: %.1fms\n", total_time / 1e6);
 
 
     goto release_data_buffer;

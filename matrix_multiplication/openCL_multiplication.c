@@ -4,56 +4,85 @@
 #include "openCL_multiplication.h"
 #include "utils.h"
 
-#ifndef CHECK_ERR
-#define CHECK_ERR(intro, result, exit_label)        \
-do {                                                \
-    if ((result) < 0)                               \
-    {                                               \
-        fprintf(stderr, "%s: %d", intro, result);   \
-        exit_code = -1;                             \
-        goto exit_label;                            \
-    }                                               \
-} while (0)
-#endif
-
 const size_t sizeX = 32;
 const size_t sizeY = 32;
 const size_t itemPerThread = 8;
 
-#ifdef DEBUG
-#ifndef DEBUG_PRINT
-#define DEBUG_PRINT(s)  \
-do {                    \
-    s;                  \
-} while (0)
-#endif
-#else
-#define DEBUG_PRINT(s)
-#endif
+char* CPU_[3] = {"nvidia", "amd", "intel"};
+char* GPU_[3] = {"nvidia", "amd", "intel"};
 
-cl_platform_id *getPreferredPlatform() {
+struct openCLDevice {
+    char *name;
+};
+
+struct openCLPlatform {
+    cl_platform_id id;
+    char *name;
+    cl_uint deviceNums;
+    char *devices;
+};
+
+
+cl_platform_id *getPreferredDevice(int deviceType) {
+    deviceType = CL_DEVICE_TYPE_CPU | CL_DEVICE_TYPE_GPU;
+
     cl_int errCode;
+    cl_device_id *deviceIds = NULL;
+
     cl_uint platformsNum;
     errCode = clGetPlatformIDs(0, NULL, &platformsNum);
-    DEBUG_PRINT(printf("Platforms num: %u\n", platformsNum));
+    DEBUG_PRINT(printf("Platforms number: %u\n", platformsNum));
 
     cl_platform_id *platforms = (cl_platform_id *) malloc(platformsNum * sizeof(cl_platform_id));
     errCode = clGetPlatformIDs(platformsNum, platforms, &platformsNum);
+    CHECK_ERR("clGetPlatformIDs", errCode, end);
 
     if (platformsNum <= 0) {
         printf("Platforms not founds\n");
-        return NULL;
+        goto end;
     }
 
-    for (int i = 0; i < platformsNum; i++) {
-        size_t clPlatformNameSize;
-        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
-        char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
-        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
-                                    &clPlatformNameSize);
-        DEBUG_PRINT(printf("Platform %d: %s\n", i, clPlatformName));
-        free(clPlatformName);
-    }
+
+//    struct openCLPlatform* clPlatform = (struct openCLPlatform *) malloc(platformsNum * sizeof(struct openCLPlatform));
+//    for (int i = 0; i < platformsNum; ++i) {
+//        clPlatform[i].id = platforms[i];
+//    }
+//    free(platforms);
+//
+//
+//    for (int i = 0; i < platformsNum; ++i) {
+//        size_t clPlatformNameSize;
+//        errCode = clGetPlatformInfo(clPlatform[i].id, CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
+//        clPlatform[i].name = (char *) malloc(clPlatformNameSize * sizeof(char));
+//        errCode = clGetPlatformInfo(clPlatform[i].id, CL_PLATFORM_NAME, clPlatformNameSize, clPlatform[i].name, &clPlatformNameSize);
+////        DEBUG_PRINT(printf("Platform %d: %s\n", i, clPlatformName));
+////        free(clPlatformName);
+//
+////        cl_uint deviceNums;
+//        errCode = clGetDeviceIDs(clPlatform[i].id, CL_DEVICE_TYPE_ALL, 0, NULL, &clPlatform[i].deviceNums);
+//        DEBUG_PRINT(printf("DevicesNums: %d %d\n", errCode, deviceNums));
+//        deviceIds = (cl_device_id *) malloc(clPlatform[i].deviceNums * sizeof(cl_device_id));
+//        errCode = clGetDeviceIDs(clPlatform[i].id, CL_DEVICE_TYPE_ALL, clPlatform[i].deviceNums, deviceIds, &clPlatform[i].deviceNums);
+//        DEBUG_PRINT(printf("Devices: %d %d\n", errCode, deviceNums));
+//
+//    }
+
+
+
+//    int preferredPlatformIndex = 0;
+//    char** preferredPlatform = deviceType == CL_DEVICE_TYPE_CPU ? CPU_ : GPU_;
+//    for (preferredPlatformIndex = 0; preferredPlatformIndex < 3; ++preferredPlatformIndex) {
+        for (int i = 0; i < platformsNum; i++) {
+            size_t clPlatformNameSize;
+            errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
+            char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
+            errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
+                                        &clPlatformNameSize);
+            DEBUG_PRINT(printf("Platform %d: %s\n", i, clPlatformName));
+            free(clPlatformName);
+        }
+//    }
+
 
 //    size_t clPlatformNameSize;
 //    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
@@ -63,17 +92,10 @@ cl_platform_id *getPreferredPlatform() {
 //                                &clPlatformNameSize);
 //    DEBUG_PRINT(printf("Platform %d: %d %s\n", 0, errCode, clPlatformName));
 
-    return platforms;
-}
-
-cl_device_id *getPreferredDevice() {
-    cl_platform_id *platforms = getPreferredPlatform();
-
-    cl_int errCode;
     cl_uint deviceNums;
     errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceNums);
     DEBUG_PRINT(printf("DevicesNums: %d %d\n", errCode, deviceNums));
-    cl_device_id *deviceIds = (cl_device_id *) malloc(deviceNums * sizeof(cl_device_id));
+    deviceIds = (cl_device_id *) malloc(deviceNums * sizeof(cl_device_id));
     errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, deviceNums, deviceIds, &deviceNums);
     DEBUG_PRINT(printf("Devices: %d %d\n", errCode, deviceNums));
 
@@ -97,20 +119,22 @@ cl_device_id *getPreferredDevice() {
         DEBUG_PRINT(printf("DeviceAddressBits %d: %d %d\n", i, errCode, clDeviceAddressBits));
     }
 
+    end:
     return deviceIds;
+//    return clPlatform;
 }
 
-struct PrefixSumContext {
+
+struct MatrixMultiplicationContext {
     cl_kernel kernel;
     cl_command_queue commandQueue;
     cl_context context;
-    size_t local_group_size;
 };
 
 
-struct PrefixSumContext *getPrefixSumContext(cl_device_id *deviceIds) {
+struct MatrixMultiplicationContext *getMatrixMultiplicationContext(cl_device_id *deviceIds) {
     cl_int errCode;
-    struct PrefixSumContext *props = NULL;
+    struct MatrixMultiplicationContext *props = NULL;
 
     const int numOfDevice = 0;
     cl_uint deviceNumbers = 1;
@@ -158,53 +182,19 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id *deviceIds) {
 
     CHECK_ERR("clBuildProgram", errCode, release_program);
 
-    DEBUG_PRINT(printf("Program has been built successfully"));
+    DEBUG_PRINT(printf("Program has been built successfully\n"));
 
     const char matrixMulString[] = "matrix_mul";
     cl_kernel kernel = clCreateKernel(program, matrixMulString, &errCode);
     CHECK_ERR("clCreateKernel kernel", errCode, release_program); //todo
 
-    props = (struct PrefixSumContext *) malloc(sizeof(struct PrefixSumContext));
+    props = (struct MatrixMultiplicationContext *) malloc(sizeof(struct MatrixMultiplicationContext));
     props->kernel = kernel;
     props->commandQueue = commandQueue;
     props->context = context;
 //    props->local_group_size = LOCAL_GROUP_SIZE; // TODO calculate better tile_size
 
-    goto exit;
 
-    release_kernel_prefixSum:
-    clReleaseKernel(kernel);
-    release_program:
-    clReleaseProgram(program);
-    release_queue:
-    free(programSource);
-    clReleaseCommandQueue(commandQueue);
-    release_context:
-    clReleaseContext(context);
-    exit:
-    return props;
-}
-
-
-cl_ulong printExecutionTimeInfo(cl_event event) {
-    cl_int errCode;
-    cl_ulong begin = 0, end = 0;
-
-    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &begin, NULL);
-    CHECK_ERR("clGetEventProfilingInfo start time", errCode, end);
-    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, NULL);
-    CHECK_ERR("clGetEventProfilingInfo end time", errCode, end);
-
-    end:
-    return end - begin;
-}
-
-
-float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, size_t k, size_t m) {
-    cl_int errCode;
-    float *matrix3 = NULL;
-
-    cl_device_id *deviceIds = getPreferredDevice();
 
 //    int a = CL_INVALID_KERNEL;
 //    size_t kernelWorkGroupSize;
@@ -230,74 +220,130 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
 //    printf("KernelPreferredWorkGroupSizeMultipe: %lu\n", kernelPreferredWorkGroupSizeMultipe);
 
 
-    struct PrefixSumContext *prefixSumContext = getPrefixSumContext(deviceIds);
 
 
+    goto exit;
+
+    release_kernel_prefixSum:
+    clReleaseKernel(kernel);
+    release_program:
+    clReleaseProgram(program);
+    release_queue:
+    free(programSource);
+    clReleaseCommandQueue(commandQueue);
+    release_context:
+    clReleaseContext(context);
+    exit:
+    return props;
+}
+
+// +
+void releaseMatrixMultiplicationContext(struct MatrixMultiplicationContext *matrixMulContext) {
+    clReleaseKernel(matrixMulContext->kernel);
+    clReleaseCommandQueue(matrixMulContext->commandQueue);
+    clReleaseContext(matrixMulContext->context);
+    free(matrixMulContext);
+};
 
 
+// +
+cl_ulong getExecutionTimeInfo(cl_event event) {
+    cl_int errCode;
+    cl_ulong begin = 0, end = 0;
+
+    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &begin, NULL);
+    CHECK_ERR("clGetEventProfilingInfo start time", errCode, end);
+    errCode = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, NULL);
+    CHECK_ERR("clGetEventProfilingInfo end time", errCode, end);
+
+    end:
+    return end - begin;
+}
+
+
+float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, size_t k, size_t m) {
+    cl_int errCode;
+    float *resultMatrix = NULL;
+
+    cl_device_id *deviceIds = getPreferredDevice(CL_DEVICE_TYPE_GPU);
+    if (deviceIds == NULL) {
+        goto end;
+    }
+
+
+    struct MatrixMultiplicationContext *matrixMulContext = getMatrixMultiplicationContext(deviceIds);
+    if (deviceIds == NULL) {
+        goto release_device;
+    }
+
+    // todo
 //    float *matrix21 = getTransposedMatrix(matrix2, k, m);
     float *matrix21 = matrix2;
 
 
-    cl_mem buffer1 = clCreateBuffer(prefixSumContext->context, CL_MEM_READ_ONLY, sizeof(float) * n * k, NULL, &errCode);
+    cl_mem bufferMatrix1 = clCreateBuffer(matrixMulContext->context, CL_MEM_READ_ONLY, sizeof(float) * n * k, NULL,
+                                          &errCode);
     CHECK_ERR("clEnqueueWriteBuffer matrix_1", errCode, release_context);
-    cl_mem buffer2 = clCreateBuffer(prefixSumContext->context, CL_MEM_READ_ONLY, sizeof(float) * k * m, NULL, &errCode);
+    cl_mem bufferMatrix2 = clCreateBuffer(matrixMulContext->context, CL_MEM_READ_ONLY, sizeof(float) * k * m, NULL,
+                                          &errCode);
     CHECK_ERR("clEnqueueWriteBuffer matrix_2", errCode, release_matrix1_buffer);
-    cl_mem buffer3 = clCreateBuffer(prefixSumContext->context, CL_MEM_WRITE_ONLY, sizeof(float) * n * m, NULL, &errCode);
+    cl_mem bufferResultMatrix = clCreateBuffer(matrixMulContext->context, CL_MEM_WRITE_ONLY, sizeof(float) * n * m,
+                                               NULL, &errCode);
     CHECK_ERR("clEnqueueWriteBuffer matrix_result", errCode, release_matrix2_buffer);
 
 
-    errCode = clEnqueueWriteBuffer(prefixSumContext->commandQueue, buffer1, 1, 0, sizeof(float) * n * k, matrix1, 0,
+    errCode = clEnqueueWriteBuffer(matrixMulContext->commandQueue, bufferMatrix1, CL_TRUE, 0, sizeof(float) * n * k,
+                                   matrix1, 0,
                                    NULL, NULL);
     CHECK_ERR("clEnqueueWriteBuffer matrix1", errCode, release_matrix3_buffer);
-    errCode = clEnqueueWriteBuffer(prefixSumContext->commandQueue, buffer2, 1, 0, sizeof(float) * k * m, matrix21, 0,
+    errCode = clEnqueueWriteBuffer(matrixMulContext->commandQueue, bufferMatrix2, CL_TRUE, 0, sizeof(float) * k * m,
+                                   matrix21, 0,
                                    NULL, NULL);
     CHECK_ERR("clEnqueueWriteBuffer matrix2", errCode, release_matrix3_buffer);
 
-    errCode = clSetKernelArg(prefixSumContext->kernel, 0, sizeof(cl_mem), &buffer1);
-    errCode = clSetKernelArg(prefixSumContext->kernel, 1, sizeof(cl_mem), &buffer2);
-    errCode = clSetKernelArg(prefixSumContext->kernel, 2, sizeof(cl_mem), &buffer3);
-    errCode = clSetKernelArg(prefixSumContext->kernel, 3, sizeof(int), &n);
-    errCode = clSetKernelArg(prefixSumContext->kernel, 4, sizeof(int), &k);
-    errCode = clSetKernelArg(prefixSumContext->kernel, 5, sizeof(int), &m);
+    errCode = clSetKernelArg(matrixMulContext->kernel, 0, sizeof(cl_mem), &bufferMatrix1);
+    errCode = clSetKernelArg(matrixMulContext->kernel, 1, sizeof(cl_mem), &bufferMatrix2);
+    errCode = clSetKernelArg(matrixMulContext->kernel, 2, sizeof(cl_mem), &bufferResultMatrix);
+    errCode = clSetKernelArg(matrixMulContext->kernel, 3, sizeof(int), &n);
+    errCode = clSetKernelArg(matrixMulContext->kernel, 4, sizeof(int), &k);
+    errCode = clSetKernelArg(matrixMulContext->kernel, 5, sizeof(int), &m);
     CHECK_ERR("clSetKernelArg", errCode, release_matrix3_buffer);
 
 
     cl_event event;
-    size_t dimSize[2] = {(size_t) m, (size_t) n / itemPerThread};
-    size_t zero[2] = {0, 0};
-    size_t dimLocal[2] = {sizeX, sizeY / itemPerThread};
-    errCode = clEnqueueNDRangeKernel(prefixSumContext->commandQueue, prefixSumContext->kernel, 2, NULL, dimSize,
-                                     dimLocal, 0, 0, &event);
-    if (errCode != 0) {
-        printf("clEnqueueNDRangeKernel errCode %d\n", errCode);
-        return NULL;
-    }
+    size_t workSizeDim[2] = {m, n / itemPerThread};
+    size_t localSizeDim[2] = {sizeX, sizeY / itemPerThread};
+    errCode = clEnqueueNDRangeKernel(matrixMulContext->commandQueue, matrixMulContext->kernel, 2, NULL, workSizeDim,
+                                     localSizeDim, 0, 0, &event);
+    CHECK_ERR("clEnqueueNDRangeKernel kernelPrefix", errCode, release_matrix3_buffer);
 
-    matrix3 = (float *) malloc(n * m * sizeof(float));
-    errCode = clEnqueueReadBuffer(prefixSumContext->commandQueue, buffer3, 1, 0, sizeof(float) * n * m, matrix3, 0, 0, 0);
+    clWaitForEvents(1, &event);
+
+    resultMatrix = (float *) malloc(n * m * sizeof(float));
+    errCode = clEnqueueReadBuffer(matrixMulContext->commandQueue, bufferResultMatrix, CL_TRUE, 0, sizeof(float) * n * m,
+                                  resultMatrix, 0, 0, 0);
     CHECK_ERR("clSetKernelArg", errCode, release_result);
 
 
-    cl_ulong res = printExecutionTimeInfo(event);
-
+    cl_ulong res = getExecutionTimeInfo(event);
     printf("Time: %lldms\n", res / 1000000);
 
-    double flps = ((double) n * k * m * 2) / ((double) res);
-    printf("%.6f GFlops\n", flps);
+    double gflops = ((double) n * k * m * 2) / ((double) res);
+    printf("%.6f GFlops\n", gflops);
 
     goto release_matrix3_buffer;
 
     release_result:
-    free(matrix3);
+    free(resultMatrix);
     release_matrix3_buffer:
-    clReleaseMemObject(buffer3);
+    clReleaseMemObject(bufferResultMatrix);
     release_matrix2_buffer:
-    clReleaseMemObject(buffer2);
+    clReleaseMemObject(bufferMatrix2);
     release_matrix1_buffer:
-    clReleaseMemObject(buffer1);
+    clReleaseMemObject(bufferMatrix1);
     release_context:
+    releaseMatrixMultiplicationContext(matrixMulContext);
     release_device:
     end:
-    return matrix3;
+    return resultMatrix;
 }

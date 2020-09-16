@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "openCL_prefix_sum.h"
 #include "utils.h"
-
+#include "openCL_utils.h"
 
 const size_t LOCAL_GROUP_SIZE = 1024;
 
@@ -11,67 +11,67 @@ const size_t LOCAL_GROUP_SIZE = 1024;
 //
 //};
 
-cl_platform_id *getPreferredDevice() {
-    cl_int errCode;
-    cl_uint platformsNum;
-    errCode = clGetPlatformIDs(0, NULL, &platformsNum);
-    DEBUG_PRINT(printf("Platforms num: %u\n", platformsNum));
-
-    cl_platform_id *platforms = (cl_platform_id *) malloc(platformsNum * sizeof(cl_platform_id));
-    errCode = clGetPlatformIDs(platformsNum, platforms, &platformsNum);
-
-    if (platformsNum <= 0) {
-        printf("Platforms not founds\n");
-        return NULL;
-    }
-
-    for (int i = 0; i < platformsNum; i++) {
-        size_t clPlatformNameSize;
-        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
-        char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
-        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
-                                    &clPlatformNameSize);
-        DEBUG_PRINT(printf("Platform %d: %s\n", i, clPlatformName));
-        free(clPlatformName);
-    }
-
-//    size_t clPlatformNameSize;
-//    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
-//    DEBUG_PRINT(printf("clPlatformNameSize: %llu\n", clPlatformNameSize));
-//    char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
-//    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
-//                                &clPlatformNameSize);
-//    DEBUG_PRINT(printf("Platform %d: %d %s\n", 0, errCode, clPlatformName));
-
-    cl_uint deviceNums;
-    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceNums);
-    DEBUG_PRINT(printf("DevicesNums: %d %d\n", errCode, deviceNums));
-    cl_device_id *deviceIds = (cl_device_id *) malloc(deviceNums * sizeof(cl_device_id));
-    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, deviceNums, deviceIds, &deviceNums);
-    DEBUG_PRINT(printf("Devices: %d %d\n", errCode, deviceNums));
-
-    if (deviceNums <= 0) {
-        printf("Devices not founds\n");
-        return NULL;
-    }
-
-    for (int i = 0; i < deviceNums; i++) {
-        size_t clDeviceNameSize = -1;
-        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, 0, NULL, &clDeviceNameSize);
-        char *clDeviceName = (char *) malloc(clDeviceNameSize * sizeof(char));
-        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, clDeviceNameSize, clDeviceName, &clDeviceNameSize);
-        DEBUG_PRINT(printf("DeviceName %d: %d %s\n", i, errCode, clDeviceName));
-        cl_uint clDeviceAddressBits;
-        size_t clDeviceAddressBitsRetSize;
-        // errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, 0, NULL, &clDeviceNameSize);
-        // char *clDeviceName = (char *)malloc(clDeviceNameSize * sizeof(char));
-        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &clDeviceAddressBits,
-                                  &clDeviceAddressBitsRetSize);
-        DEBUG_PRINT(printf("DeviceAddressBits %d: %d %d\n", i, errCode, clDeviceAddressBits));
-    }
-
-    return deviceIds;
-}
+//cl_platform_id *getPreferredDevice() {
+//    cl_int errCode;
+//    cl_uint platformsNum;
+//    errCode = clGetPlatformIDs(0, NULL, &platformsNum);
+//    DEBUG_PRINT(printf("Platforms num: %u\n", platformsNum));
+//
+//    cl_platform_id *platforms = (cl_platform_id *) malloc(platformsNum * sizeof(cl_platform_id));
+//    errCode = clGetPlatformIDs(platformsNum, platforms, &platformsNum);
+//
+//    if (platformsNum <= 0) {
+//        printf("Platforms not founds\n");
+//        return NULL;
+//    }
+//
+//    for (int i = 0; i < platformsNum; i++) {
+//        size_t clPlatformNameSize;
+//        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
+//        char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
+//        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
+//                                    &clPlatformNameSize);
+//        DEBUG_PRINT(printf("Platform %d: %s\n", i, clPlatformName));
+//        free(clPlatformName);
+//    }
+//
+////    size_t clPlatformNameSize;
+////    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
+////    DEBUG_PRINT(printf("clPlatformNameSize: %llu\n", clPlatformNameSize));
+////    char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
+////    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
+////                                &clPlatformNameSize);
+////    DEBUG_PRINT(printf("Platform %d: %d %s\n", 0, errCode, clPlatformName));
+//
+//    cl_uint deviceNums;
+//    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceNums);
+//    DEBUG_PRINT(printf("DevicesNums: %d %d\n", errCode, deviceNums));
+//    cl_device_id *deviceIds = (cl_device_id *) malloc(deviceNums * sizeof(cl_device_id));
+//    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, deviceNums, deviceIds, &deviceNums);
+//    DEBUG_PRINT(printf("Devices: %d %d\n", errCode, deviceNums));
+//
+//    if (deviceNums <= 0) {
+//        printf("Devices not founds\n");
+//        return NULL;
+//    }
+//
+//    for (int i = 0; i < deviceNums; i++) {
+//        size_t clDeviceNameSize = -1;
+//        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, 0, NULL, &clDeviceNameSize);
+//        char *clDeviceName = (char *) malloc(clDeviceNameSize * sizeof(char));
+//        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, clDeviceNameSize, clDeviceName, &clDeviceNameSize);
+//        DEBUG_PRINT(printf("DeviceName %d: %d %s\n", i, errCode, clDeviceName));
+//        cl_uint clDeviceAddressBits;
+//        size_t clDeviceAddressBitsRetSize;
+//        // errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, 0, NULL, &clDeviceNameSize);
+//        // char *clDeviceName = (char *)malloc(clDeviceNameSize * sizeof(char));
+//        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &clDeviceAddressBits,
+//                                  &clDeviceAddressBitsRetSize);
+//        DEBUG_PRINT(printf("DeviceAddressBits %d: %d %d\n", i, errCode, clDeviceAddressBits));
+//    }
+//
+//    return deviceIds;
+//}
 
 
 struct PrefixSumContext {
@@ -252,7 +252,7 @@ float *prefixSumOpenCL(float const *inputData, size_t inputDataSize) {
     float *prefixSum = NULL;
 
 
-    cl_device_id *deviceIds = getPreferredDevice();
+    cl_device_id *deviceIds = getPreferredDevice(CL_DEVICE_TYPE_GPU);
     if (deviceIds == NULL) {
         goto end;
     }

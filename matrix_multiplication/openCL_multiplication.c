@@ -3,126 +3,11 @@
 #include <stdio.h>
 #include "openCL_multiplication.h"
 #include "utils.h"
+#include "openCL_utils.h"
 
 const size_t sizeX = 32;
 const size_t sizeY = 32;
 const size_t itemPerThread = 8;
-
-char* CPU_[3] = {"nvidia", "amd", "intel"};
-char* GPU_[3] = {"nvidia", "amd", "intel"};
-
-struct openCLDevice {
-    char *name;
-};
-
-struct openCLPlatform {
-    cl_platform_id id;
-    char *name;
-    cl_uint deviceNums;
-    char *devices;
-};
-
-
-cl_platform_id *getPreferredDevice(int deviceType) {
-    deviceType = CL_DEVICE_TYPE_CPU | CL_DEVICE_TYPE_GPU;
-
-    cl_int errCode;
-    cl_device_id *deviceIds = NULL;
-
-    cl_uint platformsNum;
-    errCode = clGetPlatformIDs(0, NULL, &platformsNum);
-    DEBUG_PRINT(printf("Platforms number: %u\n", platformsNum));
-
-    cl_platform_id *platforms = (cl_platform_id *) malloc(platformsNum * sizeof(cl_platform_id));
-    errCode = clGetPlatformIDs(platformsNum, platforms, &platformsNum);
-    CHECK_ERR("clGetPlatformIDs", errCode, end);
-
-    if (platformsNum <= 0) {
-        printf("Platforms not founds\n");
-        goto end;
-    }
-
-
-//    struct openCLPlatform* clPlatform = (struct openCLPlatform *) malloc(platformsNum * sizeof(struct openCLPlatform));
-//    for (int i = 0; i < platformsNum; ++i) {
-//        clPlatform[i].id = platforms[i];
-//    }
-//    free(platforms);
-//
-//
-//    for (int i = 0; i < platformsNum; ++i) {
-//        size_t clPlatformNameSize;
-//        errCode = clGetPlatformInfo(clPlatform[i].id, CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
-//        clPlatform[i].name = (char *) malloc(clPlatformNameSize * sizeof(char));
-//        errCode = clGetPlatformInfo(clPlatform[i].id, CL_PLATFORM_NAME, clPlatformNameSize, clPlatform[i].name, &clPlatformNameSize);
-////        DEBUG_PRINT(printf("Platform %d: %s\n", i, clPlatformName));
-////        free(clPlatformName);
-//
-////        cl_uint deviceNums;
-//        errCode = clGetDeviceIDs(clPlatform[i].id, CL_DEVICE_TYPE_ALL, 0, NULL, &clPlatform[i].deviceNums);
-//        DEBUG_PRINT(printf("DevicesNums: %d %d\n", errCode, deviceNums));
-//        deviceIds = (cl_device_id *) malloc(clPlatform[i].deviceNums * sizeof(cl_device_id));
-//        errCode = clGetDeviceIDs(clPlatform[i].id, CL_DEVICE_TYPE_ALL, clPlatform[i].deviceNums, deviceIds, &clPlatform[i].deviceNums);
-//        DEBUG_PRINT(printf("Devices: %d %d\n", errCode, deviceNums));
-//
-//    }
-
-
-
-//    int preferredPlatformIndex = 0;
-//    char** preferredPlatform = deviceType == CL_DEVICE_TYPE_CPU ? CPU_ : GPU_;
-//    for (preferredPlatformIndex = 0; preferredPlatformIndex < 3; ++preferredPlatformIndex) {
-        for (int i = 0; i < platformsNum; i++) {
-            size_t clPlatformNameSize;
-            errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
-            char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
-            errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
-                                        &clPlatformNameSize);
-            DEBUG_PRINT(printf("Platform %d: %s\n", i, clPlatformName));
-            free(clPlatformName);
-        }
-//    }
-
-
-//    size_t clPlatformNameSize;
-//    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
-//    DEBUG_PRINT(printf("clPlatformNameSize: %llu\n", clPlatformNameSize));
-//    char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
-//    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
-//                                &clPlatformNameSize);
-//    DEBUG_PRINT(printf("Platform %d: %d %s\n", 0, errCode, clPlatformName));
-
-    cl_uint deviceNums;
-    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceNums);
-    DEBUG_PRINT(printf("DevicesNums: %d %d\n", errCode, deviceNums));
-    deviceIds = (cl_device_id *) malloc(deviceNums * sizeof(cl_device_id));
-    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, deviceNums, deviceIds, &deviceNums);
-    DEBUG_PRINT(printf("Devices: %d %d\n", errCode, deviceNums));
-
-    if (deviceNums <= 0) {
-        printf("Devices not founds\n");
-        return NULL;
-    }
-
-    for (int i = 0; i < deviceNums; i++) {
-        size_t clDeviceNameSize = -1;
-        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, 0, NULL, &clDeviceNameSize);
-        char *clDeviceName = (char *) malloc(clDeviceNameSize * sizeof(char));
-        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, clDeviceNameSize, clDeviceName, &clDeviceNameSize);
-        DEBUG_PRINT(printf("DeviceName %d: %d %s\n", i, errCode, clDeviceName));
-        cl_uint clDeviceAddressBits;
-        size_t clDeviceAddressBitsRetSize;
-        // errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, 0, NULL, &clDeviceNameSize);
-        // char *clDeviceName = (char *)malloc(clDeviceNameSize * sizeof(char));
-        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &clDeviceAddressBits,
-                                  &clDeviceAddressBitsRetSize);
-        DEBUG_PRINT(printf("DeviceAddressBits %d: %d %d\n", i, errCode, clDeviceAddressBits));
-    }
-
-    end:
-    return deviceIds;
-//    return clPlatform;
-}
 
 
 struct MatrixMultiplicationContext {
@@ -167,7 +52,7 @@ struct MatrixMultiplicationContext *getMatrixMultiplicationContext(cl_device_id 
     errCode = clBuildProgram(program, deviceNumbers, deviceIds + numOfDevice, buildOptions, NULL, NULL);
 
     if (errCode == CL_BUILD_PROGRAM_FAILURE
-#ifdef DEBUG
+        #ifdef DEBUG
         || errCode == 0
 #endif
             ) {

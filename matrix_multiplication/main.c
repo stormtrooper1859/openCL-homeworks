@@ -24,22 +24,15 @@ int main() {
 
     float *matrix3CL = matrixMulOpenCL(matrix1, matrix2, n, k, m);
 
-    clock_t begin_calculation = clock();
+    printf("compute reference value...\n");
+    clock_t timeBeforeCalc = clock();
+    float *matrix3MP = matrixMulMP(matrix1, matrix2, n, k, m);
+    clock_t timeAfterCalc = clock();
+
+    float stat1 = (float) (timeAfterCalc - timeBeforeCalc) / CLOCKS_PER_SEC * MILLIS_IN_SECOND;
+    printf("CPU matrix multiplication time: %.0fms\n", stat1);
 
     printf("comparing...\n");
-    float *matrix3MP = matrixMulMP(matrix1, matrix2, n, k, m);
-
-    clock_t end_calculation = clock();
-
-//    float *matrix3CHECK = matrixMul(matrix1, matrix2, n, m, p);
-
-    clock_t end_calculation2 = clock();
-
-    float stat1 = (float) (end_calculation - begin_calculation) / CLOCKS_PER_SEC * MILLIS_IN_SECOND;
-    float stat2 = (float) (end_calculation2 - end_calculation) / CLOCKS_PER_SEC * MILLIS_IN_SECOND;
-    printf("%.0fms\n", stat1);
-    printf("%.0fms\n", stat2);
-
     printf("Result of comparing: %i\n", matrixCompare(matrix3CL, matrix3MP, n, m));
 
     return 0;

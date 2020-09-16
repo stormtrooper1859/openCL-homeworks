@@ -188,7 +188,7 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id *deviceIds) {
 }
 
 // +
-int prefixSumOpenCLInner(struct PrefixSumContext *prefixSumContext, cl_mem bufferData, size_t dataSize) {
+cl_int prefixSumOpenCLInner(struct PrefixSumContext *prefixSumContext, cl_mem bufferData, size_t dataSize) {
     cl_int errCode;
 
     // делаем размер work_size кратным local_group_size
@@ -296,8 +296,8 @@ float *prefixSumOpenCL(float const *inputData, size_t inputDataSize) {
     CHECK_ERR("clEnqueueWriteBuffer input data", errCode, release_data_buffer);
 
 
-    cl_mem prefixSumBuffer = prefixSumOpenCLInner(prefixSumContext, dataBuffer, inputDataSize);
-    if (prefixSumBuffer == NULL) {
+    cl_int prefixSumBuffer = prefixSumOpenCLInner(prefixSumContext, dataBuffer, inputDataSize);
+    if (prefixSumBuffer != 0) {
         goto release_data_buffer;
     }
 

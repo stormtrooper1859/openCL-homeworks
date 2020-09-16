@@ -18,7 +18,6 @@ if(OPENMP_FOUND)
 endif()
 
 add_executable(prefix_sum main.c classic_prefix_sum.c classic_prefix_sum.h openCL_prefix_sum.c openCL_prefix_sum.h)
-#add_executable(prefix_sum main.c utils.c utils.h classic_multiplication.c classic_multiplication.h openCL_prefix_sum.c openCL_prefix_sum.h)
 
 target_link_libraries(prefix_sum OpenCL::OpenCL libutils)
 

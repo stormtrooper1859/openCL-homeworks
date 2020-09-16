@@ -3,6 +3,7 @@
 
 #include "classic_multiplication.h"
 
+
 float *matrixMul(float const *matrix1, float const *matrix2, int n, int m, int p) {
     float *resultMatrix = (float *) malloc(n * p * sizeof(float));
 

@@ -17,8 +17,9 @@ if(OPENMP_FOUND)
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
-add_executable(prefix_sum main.c utils.c utils.h classic_multiplication.c classic_multiplication.h openCL_prefix_sum.c openCL_prefix_sum.h)
+add_executable(prefix_sum main.c classic_prefix_sum.c classic_prefix_sum.h openCL_prefix_sum.c openCL_prefix_sum.h)
+#add_executable(prefix_sum main.c utils.c utils.h classic_multiplication.c classic_multiplication.h openCL_prefix_sum.c openCL_prefix_sum.h)
 
-target_link_libraries(prefix_sum OpenCL::OpenCL)
+target_link_libraries(prefix_sum OpenCL::OpenCL libutils)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/prefix_sum.cl ${CMAKE_CURRENT_BINARY_DIR}/prefix_sum.cl COPYONLY)

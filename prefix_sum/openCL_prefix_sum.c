@@ -321,6 +321,7 @@ float *prefixSumOpenCL(float const *inputData, size_t inputDataSize) {
     clReleaseMemObject(dataBuffer);
     release_context:
     release_device:
+    //todo release device
     end:
     return prefixSum;
 }

@@ -17,8 +17,9 @@ if(OPENMP_FOUND)
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
-add_executable(matrix_multiplication main.c utils.c utils.h classic_multiplication.c classic_multiplication.h openCL_multiplication.c openCL_multiplication.h)
+add_executable(matrix_multiplication main.c classic_multiplication.c classic_multiplication.h openCL_multiplication.c openCL_multiplication.h)
+#add_executable(matrix_multiplication main.c utils.c utils.h classic_multiplication.c classic_multiplication.h openCL_multiplication.c openCL_multiplication.h)
 
-target_link_libraries(matrix_multiplication OpenCL::OpenCL)
+target_link_libraries(matrix_multiplication OpenCL::OpenCL libutils)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/program.cl ${CMAKE_CURRENT_BINARY_DIR}/program.cl COPYONLY)

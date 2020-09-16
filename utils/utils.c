@@ -1,7 +1,12 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include "utils.h"
 
+
+void hello() {
+    printf("Hello, world!\n");
+}
 
 static unsigned long xorshf96_x = 123456789, xorshf96_y = 362436069, xorshf96_z = 521288629;
 
@@ -25,10 +30,10 @@ float *generateMatrix(int a, int b) {
 
     for (int i = 0; i < a * b; i++) {
 //        matrix[i] = (float) (rng() % 21) - 10;
-//        matrix[i] = ((float) (rand() % 219) - 109) / 10.0f;
-//        matrix[i] = ((float) (rand() % 219) - 109) / 10.0f;
-        matrix[i] = ((float) (rng() % 219) - 109) / 10.0f;
-        matrix[i] += 2.0f * (matrix[i] > 0 ? 1 : -1);
+        matrix[i] = ((float) (rand() % 219) - 109) / 10.0f;
+////        matrix[i] = ((float) (rand() % 219) - 109) / 10.0f;
+//        matrix[i] = ((float) (rng() % 219) - 109) / 10.0f;
+//        matrix[i] += 2.0f * (matrix[i] > 0 ? 1 : -1);
     }
 
     return matrix;
@@ -48,6 +53,8 @@ float *getTransposedMatrix(float const *matrix, int a, int b) {
 }
 
 int floatEq(float f1, float f2) {
+    return fabsf(f1 - f2) < 0.01;
+
     float diff = f1 - f2;
     diff *= diff < 0 ? -1 : 1;
     if (diff < 1e-5) return 1;
@@ -76,6 +83,17 @@ int matrixCompare(float const *matrix1, float const *matrix2, int a, int b) {
     }
 
     return i == a * b;
+}
+
+
+void printMatrix(float *matrix, int n, int m) {
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < m; j++) {
+            printf("%5.0f ", matrix[i * m + j]);
+        }
+        printf("\n");
+    }
+    printf("-----\n");
 }
 
 

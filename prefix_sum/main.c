@@ -2,18 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include "utils.h"
-#include "classic_multiplication.h"
+#include "classic_prefix_sum.h"
 #include "openCL_prefix_sum.h"
-
-void printMatrix(float *matrix, int n, int m) {
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            printf("%5.1f ", matrix[i * m + j]);
-        }
-        printf("\n");
-    }
-    printf("-----\n");
-}
 
 
 int main() {

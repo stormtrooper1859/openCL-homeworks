@@ -1,9 +1,10 @@
 #include <stdlib.h>
-#include "classic_multiplication.h"
 #include "utils.h"
 
+#include "classic_multiplication.h"
+
 float *matrixMul(float const *matrix1, float const *matrix2, int n, int m, int p) {
-    float *result_matrix = (float *) malloc(n * p * sizeof(float));
+    float *resultMatrix = (float *) malloc(n * p * sizeof(float));
 
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < p; ++j) {
@@ -11,18 +12,18 @@ float *matrixMul(float const *matrix1, float const *matrix2, int n, int m, int p
             for (int k = 0; k < m; ++k) {
                 res += matrix1[i * m + k] * matrix2[k * p + j];
             }
-            result_matrix[i * p + j] = res;
+            resultMatrix[i * p + j] = res;
         }
     }
 
-    return result_matrix;
+    return resultMatrix;
 }
 
 
 float *matrixMulMP(float const *matrix1, float const *matrix2, int n, int m, int p) {
-    float *result_matrix = (float *) malloc(n * p * sizeof(float));
+    float *resultMatrix = (float *) malloc(n * p * sizeof(float));
 
-    float *matrix2T = getTransposedMatrix(matrix2, m , p);
+    float *matrix2T = getTransposedMatrix(matrix2, m, p);
 
 #pragma omp parallel
     {
@@ -35,7 +36,7 @@ float *matrixMulMP(float const *matrix1, float const *matrix2, int n, int m, int
                 for (int k = 0; k < m; k++) {
                     tt += matrix1[i * m + k] * matrix2T[j * m + k];
                 }
-                result_matrix[i * p + j] = tt;
+                resultMatrix[i * p + j] = tt;
             }
         }
 
@@ -43,5 +44,5 @@ float *matrixMulMP(float const *matrix1, float const *matrix2, int n, int m, int
 
     free(matrix2T);
 
-    return result_matrix;
+    return resultMatrix;
 }

@@ -98,7 +98,7 @@ void releaseMatrixMultiplicationContext(struct MatrixMultiplicationContext *matr
     clReleaseKernel(matrixMulContext->kernel);
     clReleaseCommandQueue(matrixMulContext->commandQueue);
     clReleaseContext(matrixMulContext->context);
-    free(matrixMulContext->program);
+    clReleaseProgram(matrixMulContext->program);
     free(matrixMulContext);
 };
 

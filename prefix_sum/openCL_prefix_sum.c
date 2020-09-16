@@ -7,72 +7,6 @@
 
 const size_t LOCAL_GROUP_SIZE = 1024;
 
-//struct DeviceInfo {
-//
-//};
-
-//cl_platform_id *getPreferredDevice() {
-//    cl_int errCode;
-//    cl_uint platformsNum;
-//    errCode = clGetPlatformIDs(0, NULL, &platformsNum);
-//    DEBUG_PRINT(printf("Platforms num: %u\n", platformsNum));
-//
-//    cl_platform_id *platforms = (cl_platform_id *) malloc(platformsNum * sizeof(cl_platform_id));
-//    errCode = clGetPlatformIDs(platformsNum, platforms, &platformsNum);
-//
-//    if (platformsNum <= 0) {
-//        printf("Platforms not founds\n");
-//        return NULL;
-//    }
-//
-//    for (int i = 0; i < platformsNum; i++) {
-//        size_t clPlatformNameSize;
-//        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
-//        char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
-//        errCode = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
-//                                    &clPlatformNameSize);
-//        DEBUG_PRINT(printf("Platform %d: %s\n", i, clPlatformName));
-//        free(clPlatformName);
-//    }
-//
-////    size_t clPlatformNameSize;
-////    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
-////    DEBUG_PRINT(printf("clPlatformNameSize: %llu\n", clPlatformNameSize));
-////    char *clPlatformName = (char *) malloc(clPlatformNameSize * sizeof(char));
-////    errCode = clGetPlatformInfo(platforms[0], CL_PLATFORM_NAME, clPlatformNameSize, clPlatformName,
-////                                &clPlatformNameSize);
-////    DEBUG_PRINT(printf("Platform %d: %d %s\n", 0, errCode, clPlatformName));
-//
-//    cl_uint deviceNums;
-//    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceNums);
-//    DEBUG_PRINT(printf("DevicesNums: %d %d\n", errCode, deviceNums));
-//    cl_device_id *deviceIds = (cl_device_id *) malloc(deviceNums * sizeof(cl_device_id));
-//    errCode = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, deviceNums, deviceIds, &deviceNums);
-//    DEBUG_PRINT(printf("Devices: %d %d\n", errCode, deviceNums));
-//
-//    if (deviceNums <= 0) {
-//        printf("Devices not founds\n");
-//        return NULL;
-//    }
-//
-//    for (int i = 0; i < deviceNums; i++) {
-//        size_t clDeviceNameSize = -1;
-//        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, 0, NULL, &clDeviceNameSize);
-//        char *clDeviceName = (char *) malloc(clDeviceNameSize * sizeof(char));
-//        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_NAME, clDeviceNameSize, clDeviceName, &clDeviceNameSize);
-//        DEBUG_PRINT(printf("DeviceName %d: %d %s\n", i, errCode, clDeviceName));
-//        cl_uint clDeviceAddressBits;
-//        size_t clDeviceAddressBitsRetSize;
-//        // errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, 0, NULL, &clDeviceNameSize);
-//        // char *clDeviceName = (char *)malloc(clDeviceNameSize * sizeof(char));
-//        errCode = clGetDeviceInfo(deviceIds[i], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &clDeviceAddressBits,
-//                                  &clDeviceAddressBitsRetSize);
-//        DEBUG_PRINT(printf("DeviceAddressBits %d: %d %d\n", i, errCode, clDeviceAddressBits));
-//    }
-//
-//    return deviceIds;
-//}
-
 
 struct PrefixSumContext {
     cl_kernel kernelPrefix;
@@ -82,21 +16,20 @@ struct PrefixSumContext {
     size_t local_group_size;
     cl_event *firstEvent;
     cl_event *lastEvent;
+    cl_program program;
 };
 
 
-struct PrefixSumContext *getPrefixSumContext(cl_device_id *deviceIds) {
+struct PrefixSumContext *getPrefixSumContext(cl_device_id deviceIds) {
     cl_int errCode;
     struct PrefixSumContext *props = NULL;
 
-    const int numOfDevice = 0;
     cl_uint deviceNumbers = 1;
 
-    cl_context context = clCreateContext(NULL, deviceNumbers, deviceIds + numOfDevice, NULL, NULL, &errCode);
+    cl_context context = clCreateContext(NULL, deviceNumbers, &deviceIds, NULL, NULL, &errCode);
     CHECK_ERR("clCreateContext", errCode, exit);
 
-    cl_command_queue commandQueue = clCreateCommandQueue(context, deviceIds[numOfDevice], CL_QUEUE_PROFILING_ENABLE,
-                                                         &errCode);
+    cl_command_queue commandQueue = clCreateCommandQueue(context, deviceIds, CL_QUEUE_PROFILING_ENABLE, &errCode);
     CHECK_ERR("clCreateCommandQueue", errCode, release_context);
 
 
@@ -111,9 +44,10 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id *deviceIds) {
 
     char buildOptions[1000];
     sprintf(buildOptions, "-D LOCAL_GROUP_SIZE=%Iu -Werror", LOCAL_GROUP_SIZE);
+    DEBUG_PRINT(printf("kernel build options: %s\n", buildOptions));
 
 
-    errCode = clBuildProgram(program, deviceNumbers, deviceIds + numOfDevice, buildOptions, NULL, NULL);
+    errCode = clBuildProgram(program, deviceNumbers, &deviceIds, buildOptions, NULL, NULL);
 
     if (errCode == CL_BUILD_PROGRAM_FAILURE
 #ifdef DEBUG
@@ -121,9 +55,9 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id *deviceIds) {
 #endif
             ) {
         size_t clBuildInfoLogSize = 0;
-        clGetProgramBuildInfo(program, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);
+        clGetProgramBuildInfo(program, deviceIds, CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);
         char *buildInfoLog = (char *) malloc(sizeof(char) * clBuildInfoLogSize);
-        clGetProgramBuildInfo(program, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, clBuildInfoLogSize, buildInfoLog,
+        clGetProgramBuildInfo(program, deviceIds, CL_PROGRAM_BUILD_LOG, clBuildInfoLogSize, buildInfoLog,
                               &clBuildInfoLogSize);
         printf("Compiler response: %s", buildInfoLog);
         free(buildInfoLog);
@@ -147,11 +81,14 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id *deviceIds) {
     props->kernelAdd = kernelAddToBlocks;
     props->commandQueue = commandQueue;
     props->context = context;
-    props->local_group_size = LOCAL_GROUP_SIZE; // TODO calculate better tile_size
-    props->firstEvent = malloc(sizeof(cl_event) * 10);
+    props->local_group_size = LOCAL_GROUP_SIZE;
+    props->firstEvent = malloc(sizeof(cl_event) * 10); // количество рекуррентных вызовов не должно превысить 10
     props->lastEvent = props->firstEvent;
+    props->program = program;
 
-    goto exit;
+
+    free(programSource);
+    return props;
 
     release_kernel_prefixSum:
     clReleaseKernel(kernelPrefixSum);
@@ -166,7 +103,17 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id *deviceIds) {
     return props;
 }
 
-// +
+
+void releasePrefixSumContext(struct PrefixSumContext *prefixSumContext) {
+    clReleaseKernel(prefixSumContext->kernelAdd);
+    clReleaseKernel(prefixSumContext->kernelPrefix);
+    clReleaseProgram(prefixSumContext->program);
+    clReleaseCommandQueue(prefixSumContext->commandQueue);
+    clReleaseContext(prefixSumContext->context);
+    free(prefixSumContext);
+}
+
+
 cl_int prefixSumOpenCLInner(struct PrefixSumContext *prefixSumContext, cl_mem bufferData, size_t dataSize) {
     cl_int errCode;
 
@@ -220,7 +167,7 @@ cl_int prefixSumOpenCLInner(struct PrefixSumContext *prefixSumContext, cl_mem bu
     return errCode;
 }
 
-// +
+
 cl_ulong printExecutionTimeInfo(struct PrefixSumContext *prefixSumContext) {
     cl_int errCode;
     cl_ulong total_time = 0;
@@ -252,7 +199,7 @@ float *prefixSumOpenCL(float const *inputData, size_t inputDataSize) {
     float *prefixSum = NULL;
 
 
-    cl_device_id *deviceIds = getPreferredDevice(CL_DEVICE_TYPE_GPU);
+    cl_device_id deviceIds = getPreferredDevice(CL_DEVICE_TYPE_GPU);
     if (deviceIds == NULL) {
         goto end;
     }
@@ -283,23 +230,20 @@ float *prefixSumOpenCL(float const *inputData, size_t inputDataSize) {
 
     errCode = clEnqueueReadBuffer(prefixSumContext->commandQueue, dataBuffer, 1, 0, sizeof(float) * inputDataSize,
                                   prefixSum, 0, NULL, NULL);
-    CHECK_ERR("clEnqueueReadBuffer result data", errCode, release_prefix_sum);
+    if (errCode) free(prefixSum);
+    CHECK_ERR("clEnqueueReadBuffer result data", errCode, release_data_buffer);
 
 
     cl_ulong total_time = printExecutionTimeInfo(prefixSumContext);
-    printf("Time: %.1fms\n", total_time / 1e6);
+    printf("OpenCL prefix sum time: : %.1fms\n", total_time / 1e6);
 
 
-    goto release_data_buffer;
-
-
-    release_prefix_sum:
-    free(prefixSum);
     release_data_buffer:
     clReleaseMemObject(dataBuffer);
     release_context:
+    releasePrefixSumContext(prefixSumContext);
     release_device:
-    //todo release device
+    clReleaseDevice(deviceIds);
     end:
     return prefixSum;
 }

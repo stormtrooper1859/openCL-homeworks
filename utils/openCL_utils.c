@@ -10,7 +10,7 @@
 char *CPU_[3] = {"intel", "amd", "nvidia"};
 char *GPU_[3] = {"nvidia", "amd", "intel"};
 
-cl_device_id *getPreferredDevice(cl_device_type deviceType) {
+cl_device_id getPreferredDevice(cl_device_type deviceType) {
     cl_int errCode;
     cl_device_id *deviceIds = NULL;
 
@@ -126,5 +126,5 @@ cl_device_id *getPreferredDevice(cl_device_type deviceType) {
     DEBUG_PRINT(printf("Selected device: %s\n", selectedDevice->name));
 
     end:
-    return &(selectedDevice->id);
+    return selectedDevice->id;
 }

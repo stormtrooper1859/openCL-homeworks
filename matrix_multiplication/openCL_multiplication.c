@@ -14,22 +14,20 @@ struct MatrixMultiplicationContext {
     cl_kernel kernel;
     cl_command_queue commandQueue;
     cl_context context;
+    cl_program program;
 };
 
 
-struct MatrixMultiplicationContext *getMatrixMultiplicationContext(cl_device_id *deviceIds) {
+struct MatrixMultiplicationContext *getMatrixMultiplicationContext(cl_device_id deviceIds) {
     cl_int errCode;
-    struct MatrixMultiplicationContext *props = NULL;
+    struct MatrixMultiplicationContext *matrixMultiplicationContext = NULL;
 
-    const int numOfDevice = 0;
     cl_uint deviceNumbers = 1;
-
-    cl_context context = clCreateContext(NULL, deviceNumbers, deviceIds + numOfDevice, NULL, NULL, &errCode);
+    cl_context context = clCreateContext(NULL, deviceNumbers, &deviceIds, NULL, NULL, &errCode);
     CHECK_ERR("clCreateContext", errCode, exit);
 
 
-    cl_command_queue commandQueue = clCreateCommandQueue(context, deviceIds[numOfDevice], CL_QUEUE_PROFILING_ENABLE,
-                                                         &errCode);
+    cl_command_queue commandQueue = clCreateCommandQueue(context, deviceIds, CL_QUEUE_PROFILING_ENABLE, &errCode);
     CHECK_ERR("clCreateCommandQueue", errCode, release_context);
 
 
@@ -45,23 +43,22 @@ struct MatrixMultiplicationContext *getMatrixMultiplicationContext(cl_device_id 
 
     char buildOptions[1000];
     sprintf(buildOptions, "-D TILE_W=%Iu -D TILE_H=%Iu -D WPT=%Iu", sizeX, sizeY, itemPerThread);
-
     DEBUG_PRINT(printf("kernel build options: %s\n", buildOptions));
 
 
-    errCode = clBuildProgram(program, deviceNumbers, deviceIds + numOfDevice, buildOptions, NULL, NULL);
+    errCode = clBuildProgram(program, deviceNumbers, &deviceIds, buildOptions, NULL, NULL);
 
     if (errCode == CL_BUILD_PROGRAM_FAILURE
-        #ifdef DEBUG
+#ifdef DEBUG
         || errCode == 0
 #endif
             ) {
         size_t clBuildInfoLogSize = 0;
-        clGetProgramBuildInfo(program, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);
+        clGetProgramBuildInfo(program, deviceIds, CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);
         char *buildInfoLog = (char *) malloc(sizeof(char) * clBuildInfoLogSize);
-        clGetProgramBuildInfo(program, deviceIds[numOfDevice], CL_PROGRAM_BUILD_LOG, clBuildInfoLogSize, buildInfoLog,
+        clGetProgramBuildInfo(program, deviceIds, CL_PROGRAM_BUILD_LOG, clBuildInfoLogSize, buildInfoLog,
                               &clBuildInfoLogSize);
-        printf("Compiler response: %s", buildInfoLog);
+        printf("Compiler response: %s\n", buildInfoLog);
         free(buildInfoLog);
     }
 
@@ -71,43 +68,17 @@ struct MatrixMultiplicationContext *getMatrixMultiplicationContext(cl_device_id 
 
     const char matrixMulString[] = "matrix_mul";
     cl_kernel kernel = clCreateKernel(program, matrixMulString, &errCode);
-    CHECK_ERR("clCreateKernel kernel", errCode, release_program); //todo
+    CHECK_ERR("clCreateKernel kernel", errCode, release_program);
 
-    props = (struct MatrixMultiplicationContext *) malloc(sizeof(struct MatrixMultiplicationContext));
-    props->kernel = kernel;
-    props->commandQueue = commandQueue;
-    props->context = context;
-//    props->local_group_size = LOCAL_GROUP_SIZE; // TODO calculate better tile_size
+    matrixMultiplicationContext = (struct MatrixMultiplicationContext *) malloc(
+            sizeof(struct MatrixMultiplicationContext));
+    matrixMultiplicationContext->kernel = kernel;
+    matrixMultiplicationContext->commandQueue = commandQueue;
+    matrixMultiplicationContext->context = context;
+    matrixMultiplicationContext->program = program;
 
-
-
-//    int a = CL_INVALID_KERNEL;
-//    size_t kernelWorkGroupSize;
-//    size_t actualKernelWorkGroupSizeBytes;
-//    errCode = clGetKernelWorkGroupInfo(kernel, deviceIds[numOfDevice], CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t),
-//                                       &kernelWorkGroupSize, &actualKernelWorkGroupSizeBytes);
-//    size_t kernelPreferredWorkGroupSizeMultipe;
-//    size_t actualKernelPreferredWorkGroupSizeMultipe;
-//    errCode = clGetKernelWorkGroupInfo(kernel, deviceIds[numOfDevice], CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
-//                                       sizeof(size_t),
-//                                       &kernelPreferredWorkGroupSizeMultipe,
-//                                       &actualKernelPreferredWorkGroupSizeMultipe);
-//    cl_ulong kernelLocalMemSize;
-//    long long actualKernelLocalMemSize;
-//    errCode = clGetKernelWorkGroupInfo(kernel, deviceIds[numOfDevice], CL_KERNEL_LOCAL_MEM_SIZE, sizeof(long long),
-//                                       &kernelLocalMemSize, &actualKernelLocalMemSize);
-//    printf("GetKernelWorkGroupInfo errCode %d\n", errCode);
-//    if (errCode != 0) {
-//        return NULL;
-//    }
-//    printf("KernelWorkSize: %lu\n", kernelWorkGroupSize);
-//    printf("KernelLocalMemSize: %llu\n", kernelLocalMemSize);
-//    printf("KernelPreferredWorkGroupSizeMultipe: %lu\n", kernelPreferredWorkGroupSizeMultipe);
-
-
-
-
-    goto exit;
+    free(programSource);
+    return matrixMultiplicationContext;
 
     release_kernel_prefixSum:
     clReleaseKernel(kernel);
@@ -119,19 +90,19 @@ struct MatrixMultiplicationContext *getMatrixMultiplicationContext(cl_device_id 
     release_context:
     clReleaseContext(context);
     exit:
-    return props;
+    return matrixMultiplicationContext;
 }
 
-// +
+
 void releaseMatrixMultiplicationContext(struct MatrixMultiplicationContext *matrixMulContext) {
     clReleaseKernel(matrixMulContext->kernel);
     clReleaseCommandQueue(matrixMulContext->commandQueue);
     clReleaseContext(matrixMulContext->context);
+    free(matrixMulContext->program);
     free(matrixMulContext);
 };
 
 
-// +
 cl_ulong getExecutionTimeInfo(cl_event event) {
     cl_int errCode;
     cl_ulong begin = 0, end = 0;
@@ -150,7 +121,7 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     cl_int errCode;
     float *resultMatrix = NULL;
 
-    cl_device_id *deviceIds = getPreferredDevice(CL_DEVICE_TYPE_GPU);
+    cl_device_id deviceIds = getPreferredDevice(CL_DEVICE_TYPE_GPU);
     if (deviceIds == NULL) {
         goto end;
     }
@@ -178,12 +149,10 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
 
 
     errCode = clEnqueueWriteBuffer(matrixMulContext->commandQueue, bufferMatrix1, CL_TRUE, 0, sizeof(float) * n * k,
-                                   matrix1, 0,
-                                   NULL, NULL);
+                                   matrix1, 0, NULL, NULL);
     CHECK_ERR("clEnqueueWriteBuffer matrix1", errCode, release_matrix3_buffer);
     errCode = clEnqueueWriteBuffer(matrixMulContext->commandQueue, bufferMatrix2, CL_TRUE, 0, sizeof(float) * k * m,
-                                   matrix21, 0,
-                                   NULL, NULL);
+                                   matrix21, 0, NULL, NULL);
     CHECK_ERR("clEnqueueWriteBuffer matrix2", errCode, release_matrix3_buffer);
 
     errCode = clSetKernelArg(matrixMulContext->kernel, 0, sizeof(cl_mem), &bufferMatrix1);
@@ -207,19 +176,17 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     resultMatrix = (float *) malloc(n * m * sizeof(float));
     errCode = clEnqueueReadBuffer(matrixMulContext->commandQueue, bufferResultMatrix, CL_TRUE, 0, sizeof(float) * n * m,
                                   resultMatrix, 0, 0, 0);
-    CHECK_ERR("clSetKernelArg", errCode, release_result);
+    if (errCode) free(resultMatrix);
+    CHECK_ERR("clSetKernelArg", errCode, release_matrix3_buffer);
 
 
     cl_ulong res = getExecutionTimeInfo(event);
-    printf("Time: %lldms\n", res / 1000000);
+    printf("OpenCL matrix multiplication time: %lldms\n", res / 1000000);
 
     double gflops = ((double) n * k * m * 2) / ((double) res);
-    printf("%.6f GFlops\n", gflops);
+    printf("Performance %.1f GFlops\n", gflops);
 
-    goto release_matrix3_buffer;
 
-    release_result:
-    free(resultMatrix);
     release_matrix3_buffer:
     clReleaseMemObject(bufferResultMatrix);
     release_matrix2_buffer:
@@ -229,6 +196,7 @@ float *matrixMulOpenCL(float const *matrix1, float const *matrix2, size_t n, siz
     release_context:
     releaseMatrixMultiplicationContext(matrixMulContext);
     release_device:
+    clReleaseDevice(deviceIds);
     end:
     return resultMatrix;
 }

@@ -16,6 +16,6 @@ struct openCLPlatform {
     struct openCLDevice *devices;
 };
 
-cl_device_id *getPreferredDevice(cl_device_type deviceType);
+cl_device_id getPreferredDevice(cl_device_type deviceType);
 
 #endif //OPENCL_HOMEWORKS_OPENCL_UTILS_H

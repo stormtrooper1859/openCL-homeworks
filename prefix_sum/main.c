@@ -9,12 +9,7 @@
 int main() {
     srand(time(0));
 
-//    const size_t n = 2049;
-//    const size_t n = 1024;
-//    const size_t n = 1024 * 1024 * 10; // 325 ms
     const size_t n = 1024 * 1024 * 64; // 325 ms
-//    const size_t n = 66; // 325 ms
-//    const size_t n = 1024 * 1024 * 128; // 707 ms
 
     clock_t tc0 = clock();
 
@@ -24,7 +19,7 @@ int main() {
 
 
     float stat0 = (float) (tc1 - tc0) / CLOCKS_PER_SEC * MILLIS_IN_SECOND;
-    printf("%.0fms\n", stat0);
+    printf("generate test data time: %.0fms\n", stat0);
 
 //    float *vectorResultCL = NULL;
     float *vectorResultCL = prefixSumOpenCL(vector, n);

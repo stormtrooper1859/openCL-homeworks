@@ -7,7 +7,7 @@
 
 
 int main() {
-    srand(time(0));
+    setRngSeed(time(0));
 
     const size_t n = 2048;
     const size_t k = 512;

@@ -1,23 +1,17 @@
 cmake_minimum_required(VERSION 3.8)
 
-if(APPLE)
-    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-        set(OpenMP_C "${CMAKE_C_COMPILER}")
-        set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -Wno-unused-command-line-argument")
-        set(OpenMP_C_LIB_NAMES "omp")
-        set(OpenMP_omp_LIBRARY ${OpenMP_C_LIB_NAMES})
-    endif()
-endif()
-
 find_package(OpenMP REQUIRED)
 find_package(OpenCL REQUIRED)
 
-if(OPENMP_FOUND)
+if (OPENMP_FOUND)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-endif()
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif ()
 
-add_executable(prefix_sum main.c classic_prefix_sum.c classic_prefix_sum.h openCL_prefix_sum.c openCL_prefix_sum.h)
+set(HEADERS classic_prefix_sum.h openCL_prefix_sum.h)
+set(SOURCES main.c classic_prefix_sum.c openCL_prefix_sum.c)
+
+add_executable(prefix_sum ${SOURCES} ${HEADERS})
 
 target_link_libraries(prefix_sum OpenCL::OpenCL libutils)
 

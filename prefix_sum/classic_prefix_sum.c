@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "classic_prefix_sum.h"
 
+
 float *prefixSum(float const *vector, size_t vectorSize) {
     float *resultVector = (float *) malloc(vectorSize * sizeof(float));
 

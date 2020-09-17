@@ -7,19 +7,22 @@
 
 #include "openCL_utils.h"
 
-char *CPU_[3] = {"intel", "amd", "nvidia"};
-char *GPU_[3] = {"nvidia", "amd", "intel"};
+#define VENDORS_LENGTH 3
 
+char *CPU_VENDORS[VENDORS_LENGTH] = {"intel", "amd", "nvidia"};
+char *GPU_VENDORS[VENDORS_LENGTH] = {"nvidia", "amd", "intel"};
+
+// при предпочтении GPU (или CPU) ищет платформу с первым попавшимся производителем из списков выше и берет из него GPU (или CPU).
+// при неудаче такого подхода возвращает первое попавшееся устройство
 cl_device_id getPreferredDevice(cl_device_type deviceType) {
     cl_int errCode;
-    cl_device_id *deviceIds = NULL;
 
     cl_uint platformsNum;
     errCode = clGetPlatformIDs(0, NULL, &platformsNum);
     DEBUG_PRINT(printf("Platforms number: %u\n", platformsNum));
 
-    cl_platform_id *platforms = (cl_platform_id *) malloc(platformsNum * sizeof(cl_platform_id));
-    errCode = clGetPlatformIDs(platformsNum, platforms, &platformsNum);
+    cl_platform_id *clPlatforms = (cl_platform_id *) malloc(platformsNum * sizeof(cl_platform_id));
+    errCode = clGetPlatformIDs(platformsNum, clPlatforms, &platformsNum);
     CHECK_ERR("clGetPlatformIDs", errCode, end);
 
     if (platformsNum <= 0) {
@@ -28,32 +31,28 @@ cl_device_id getPreferredDevice(cl_device_type deviceType) {
     }
 
 
-    struct openCLPlatform *clPlatform = (struct openCLPlatform *) malloc(platformsNum * sizeof(struct openCLPlatform));
+    struct openCLPlatform *platforms = (struct openCLPlatform *) malloc(platformsNum * sizeof(struct openCLPlatform));
     for (int i = 0; i < platformsNum; ++i) {
-        clPlatform[i].id = platforms[i];
+        platforms[i].id = clPlatforms[i];
     }
-    // todo
-//    free(platforms);
+    free(clPlatforms);
 
 
     // get platforms info
     for (int i = 0; i < platformsNum; ++i) {
-        struct openCLPlatform *currentPlatform = &clPlatform[i];
+        struct openCLPlatform *currentPlatform = &platforms[i];
 
         // get platform name
         size_t clPlatformNameSize;
         errCode = clGetPlatformInfo(currentPlatform->id, CL_PLATFORM_NAME, 0, NULL, &clPlatformNameSize);
         currentPlatform->name = (char *) malloc(clPlatformNameSize * sizeof(char));
-        errCode = clGetPlatformInfo(currentPlatform->id, CL_PLATFORM_NAME, clPlatformNameSize, currentPlatform->name,
-                                    &clPlatformNameSize);
+        errCode = clGetPlatformInfo(currentPlatform->id, CL_PLATFORM_NAME, clPlatformNameSize, currentPlatform->name, &clPlatformNameSize);
 
         // get platform devices
         errCode = clGetDeviceIDs(currentPlatform->id, CL_DEVICE_TYPE_ALL, 0, NULL, &currentPlatform->deviceNums);
         cl_device_id *clDevices = (cl_device_id *) malloc(currentPlatform->deviceNums * sizeof(cl_device_id));
-        errCode = clGetDeviceIDs(currentPlatform->id, CL_DEVICE_TYPE_ALL, currentPlatform->deviceNums, clDevices,
-                                 &currentPlatform->deviceNums);
-        currentPlatform->devices = (struct openCLDevice *) malloc(
-                currentPlatform->deviceNums * sizeof(struct openCLDevice));
+        errCode = clGetDeviceIDs(currentPlatform->id, CL_DEVICE_TYPE_ALL, currentPlatform->deviceNums, clDevices, &currentPlatform->deviceNums);
+        currentPlatform->devices = malloc(currentPlatform->deviceNums * sizeof(struct openCLDevice));
 
         for (int j = 0; j < currentPlatform->deviceNums; ++j) {
             currentPlatform->devices[j].id = clDevices[j];
@@ -77,23 +76,21 @@ cl_device_id getPreferredDevice(cl_device_type deviceType) {
             size_t clDeviceNameSize;
             errCode = clGetDeviceInfo(currentDevice->id, CL_DEVICE_NAME, 0, NULL, &clDeviceNameSize);
             currentDevice->name = (char *) malloc(clDeviceNameSize * sizeof(char));
-            errCode = clGetDeviceInfo(currentDevice->id, CL_DEVICE_NAME, clDeviceNameSize, currentDevice->name,
-                                      &clDeviceNameSize);
+            errCode = clGetDeviceInfo(currentDevice->id, CL_DEVICE_NAME, clDeviceNameSize, currentDevice->name, &clDeviceNameSize);
             DEBUG_PRINT(printf("\t %d. %s\n", j + 1, currentDevice->name));
 
-            errCode = clGetDeviceInfo(currentDevice->id, CL_DEVICE_TYPE, sizeof(cl_device_type), &currentDevice->type,
-                                      NULL);
+            errCode = clGetDeviceInfo(currentDevice->id, CL_DEVICE_TYPE, sizeof(cl_device_type), &currentDevice->type, NULL);
         }
     }
 
 
     struct openCLPlatform *selectedPlatform = NULL;
 
-    char **preferredPlatform = (deviceType & CL_DEVICE_TYPE_GPU) != 0 ? GPU_ : CPU_;
-    for (int i = 0; i < 3; ++i) {
+    char **preferredPlatform = (deviceType & CL_DEVICE_TYPE_GPU) != 0 ? GPU_VENDORS : CPU_VENDORS;
+    for (int i = 0; i < VENDORS_LENGTH; ++i) {
         for (int j = 0; j < platformsNum; j++) {
-            if (strstr(clPlatform[j].name, preferredPlatform[i])) {
-                selectedPlatform = &clPlatform[j];
+            if (strstr(platforms[j].name, preferredPlatform[i])) {
+                selectedPlatform = &platforms[j];
                 break;
             }
         }
@@ -116,8 +113,8 @@ cl_device_id getPreferredDevice(cl_device_type deviceType) {
     // если не нашлась платформа то берем первую попавшуюся
     if (selectedDevice == NULL) {
         for (int i = 0; i < platformsNum; ++i) {
-            if (clPlatform[i].deviceNums > 0) {
-                selectedDevice = &clPlatform[i].devices[0];
+            if (platforms[i].deviceNums > 0) {
+                selectedDevice = &platforms[i].devices[0];
                 break;
             }
         }
@@ -125,6 +122,21 @@ cl_device_id getPreferredDevice(cl_device_type deviceType) {
 
     DEBUG_PRINT(printf("Selected device: %s\n", selectedDevice->name));
 
-    end:
-    return selectedDevice->id;
+    cl_device_id selectedDeviceId = selectedDevice->id;
+
+    // освобождаем ресуры
+    for (int i = 0; i < platformsNum; ++i) {
+        struct openCLPlatform *currentPlatform = &platforms[i];
+        for (int j = 0; j < currentPlatform->deviceNums; ++j) {
+            struct openCLDevice *currentDevice = &currentPlatform->devices[j];
+            free(currentDevice->name);
+            if (currentDevice->id != selectedDeviceId) clReleaseDevice(currentDevice->id);
+        }
+        free(currentPlatform->name);
+        free(currentPlatform->devices);
+    }
+    free(platforms);
+
+end:
+    return selectedDeviceId;
 }

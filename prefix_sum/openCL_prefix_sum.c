@@ -1,12 +1,12 @@
 #include <stdlib.h>
 #include <CL/cl.h>
 #include <stdio.h>
-#include "openCL_prefix_sum.h"
 #include "utils.h"
 #include "openCL_utils.h"
 
-//const size_t LOCAL_GROUP_SIZE = 128;
-//const size_t LOCAL_GROUP_SIZE = 1024;
+#include "openCL_prefix_sum.h"
+
+
 const size_t LOCAL_GROUP_SIZE = 128;
 
 
@@ -22,16 +22,16 @@ struct PrefixSumContext {
 };
 
 
-struct PrefixSumContext *getPrefixSumContext(cl_device_id deviceIds) {
+struct PrefixSumContext *getPrefixSumContext(cl_device_id deviceId) {
     cl_int errCode;
-    struct PrefixSumContext *props = NULL;
+    struct PrefixSumContext *prefixSumContext = NULL;
 
     cl_uint deviceNumbers = 1;
 
-    cl_context context = clCreateContext(NULL, deviceNumbers, &deviceIds, NULL, NULL, &errCode);
-    CHECK_ERR("clCreateContext", errCode, exit);
+    cl_context context = clCreateContext(NULL, deviceNumbers, &deviceId, NULL, NULL, &errCode);
+    CHECK_ERR("clCreateContext", errCode, end);
 
-    cl_command_queue commandQueue = clCreateCommandQueue(context, deviceIds, CL_QUEUE_PROFILING_ENABLE, &errCode);
+    cl_command_queue commandQueue = clCreateCommandQueue(context, deviceId, CL_QUEUE_PROFILING_ENABLE, &errCode);
     CHECK_ERR("clCreateCommandQueue", errCode, release_context);
 
 
@@ -42,6 +42,7 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id deviceIds) {
     }
 
     cl_program program = clCreateProgramWithSource(context, 1, &programSource, &programSize, &errCode);
+    free(programSource);
     CHECK_ERR("clCreateProgramWithSource", errCode, release_queue);
 
     char buildOptions[1000];
@@ -49,7 +50,7 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id deviceIds) {
     DEBUG_PRINT(printf("kernel build options: %s\n", buildOptions));
 
 
-    errCode = clBuildProgram(program, deviceNumbers, &deviceIds, buildOptions, NULL, NULL);
+    errCode = clBuildProgram(program, deviceNumbers, &deviceId, buildOptions, NULL, NULL);
 
     if (errCode == CL_BUILD_PROGRAM_FAILURE
 #ifdef DEBUG
@@ -57,10 +58,9 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id deviceIds) {
 #endif
             ) {
         size_t clBuildInfoLogSize = 0;
-        clGetProgramBuildInfo(program, deviceIds, CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);
-        char *buildInfoLog = (char *) malloc(sizeof(char) * clBuildInfoLogSize);
-        clGetProgramBuildInfo(program, deviceIds, CL_PROGRAM_BUILD_LOG, clBuildInfoLogSize, buildInfoLog,
-                              &clBuildInfoLogSize);
+        clGetProgramBuildInfo(program, deviceId, CL_PROGRAM_BUILD_LOG, 0, NULL, &clBuildInfoLogSize);
+        char *buildInfoLog = malloc(sizeof(char) * clBuildInfoLogSize);
+        clGetProgramBuildInfo(program, deviceId, CL_PROGRAM_BUILD_LOG, clBuildInfoLogSize, buildInfoLog, &clBuildInfoLogSize);
         printf("Compiler response: %s", buildInfoLog);
         free(buildInfoLog);
     }
@@ -78,31 +78,29 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id deviceIds) {
     CHECK_ERR("clCreateKernel add_to_blocks", errCode, release_kernel_prefixSum);
 
 
-    props = (struct PrefixSumContext *) malloc(sizeof(struct PrefixSumContext));
-    props->kernelPrefix = kernelPrefixSum;
-    props->kernelAdd = kernelAddToBlocks;
-    props->commandQueue = commandQueue;
-    props->context = context;
-    props->local_group_size = LOCAL_GROUP_SIZE;
-    props->firstEvent = malloc(sizeof(cl_event) * 20); // количество рекуррентных вызовов не должно превысить 10
-    props->lastEvent = props->firstEvent;
-    props->program = program;
+    prefixSumContext = malloc(sizeof(struct PrefixSumContext));
+    prefixSumContext->kernelPrefix = kernelPrefixSum;
+    prefixSumContext->kernelAdd = kernelAddToBlocks;
+    prefixSumContext->commandQueue = commandQueue;
+    prefixSumContext->context = context;
+    prefixSumContext->local_group_size = LOCAL_GROUP_SIZE;
+    prefixSumContext->firstEvent = malloc(sizeof(cl_event) * 20); // количество рекуррентных вызовов не должно превысить 10
+    prefixSumContext->lastEvent = prefixSumContext->firstEvent;
+    prefixSumContext->program = program;
 
 
-    free(programSource);
-    return props;
+    goto end;
 
-    release_kernel_prefixSum:
+release_kernel_prefixSum:
     clReleaseKernel(kernelPrefixSum);
-    release_program:
+release_program:
     clReleaseProgram(program);
-    release_queue:
-    free(programSource);
+release_queue:
     clReleaseCommandQueue(commandQueue);
-    release_context:
+release_context:
     clReleaseContext(context);
-    exit:
-    return props;
+end:
+    return prefixSumContext;
 }
 
 
@@ -116,6 +114,7 @@ void releasePrefixSumContext(struct PrefixSumContext *prefixSumContext) {
 }
 
 
+// рекурсивно вызываем для подсчета префиксной суммы на значениях последних элементов локальных групп
 cl_int prefixSumOpenCLInner(struct PrefixSumContext *prefixSumContext, cl_mem bufferData, size_t dataSize) {
     cl_int errCode;
 
@@ -128,8 +127,7 @@ cl_int prefixSumOpenCLInner(struct PrefixSumContext *prefixSumContext, cl_mem bu
     size_t localSizeDim[1] = {prefixSumContext->local_group_size};
     unsigned int blocksSumSize = workSize / prefixSumContext->local_group_size;
 
-    cl_mem bufferBlocksSum = clCreateBuffer(prefixSumContext->context, CL_MEM_READ_WRITE, sizeof(float) * blocksSumSize,
-                                            NULL, &errCode);
+    cl_mem bufferBlocksSum = clCreateBuffer(prefixSumContext->context, CL_MEM_READ_WRITE, sizeof(float) * blocksSumSize, NULL, &errCode);
 
     errCode = clSetKernelArg(prefixSumContext->kernelPrefix, 0, sizeof(cl_mem), &bufferData);
     errCode = clSetKernelArg(prefixSumContext->kernelPrefix, 1, sizeof(cl_mem), &bufferBlocksSum);
@@ -137,8 +135,8 @@ cl_int prefixSumOpenCLInner(struct PrefixSumContext *prefixSumContext, cl_mem bu
     CHECK_ERR("clSetKernelArg kernelPrefix", errCode, release_buffer_blocks);
 
 
-    errCode = clEnqueueNDRangeKernel(prefixSumContext->commandQueue, prefixSumContext->kernelPrefix, 1, NULL,
-                                     workSizeDim, localSizeDim, 0, 0, prefixSumContext->lastEvent++);
+    errCode = clEnqueueNDRangeKernel(prefixSumContext->commandQueue, prefixSumContext->kernelPrefix, 1, NULL, workSizeDim, localSizeDim, 0, 0,
+                                     prefixSumContext->lastEvent++);
     CHECK_ERR("clEnqueueNDRangeKernel kernelPrefix", errCode, release_buffer_blocks);
 
 
@@ -158,12 +156,12 @@ cl_int prefixSumOpenCLInner(struct PrefixSumContext *prefixSumContext, cl_mem bu
     errCode = clSetKernelArg(prefixSumContext->kernelAdd, 2, sizeof(int), &dataSize);
     CHECK_ERR("clSetKernelArg kernelAdd", errCode, release_buffer_blocks);
 
-    errCode = clEnqueueNDRangeKernel(prefixSumContext->commandQueue, prefixSumContext->kernelAdd, 1, NULL, workSizeDim,
-                                     localSizeDim, 0, 0, prefixSumContext->lastEvent++);
+    errCode = clEnqueueNDRangeKernel(prefixSumContext->commandQueue, prefixSumContext->kernelAdd, 1, NULL, workSizeDim, localSizeDim, 0, 0,
+                                     prefixSumContext->lastEvent++);
     CHECK_ERR("clEnqueueNDRangeKernel kernelAdd", errCode, release_buffer_blocks);
 
 
-    release_buffer_blocks:
+release_buffer_blocks:
     clReleaseMemObject(bufferBlocksSum);
 
     return errCode;
@@ -191,7 +189,7 @@ cl_ulong printExecutionTimeInfo(struct PrefixSumContext *prefixSumContext) {
         total_time += end - begin;
     }
 
-    end:
+end:
     return total_time;
 };
 
@@ -213,12 +211,10 @@ float *prefixSumOpenCL(float const *inputData, size_t inputDataSize) {
     }
 
 
-    cl_mem dataBuffer = clCreateBuffer(prefixSumContext->context, CL_MEM_READ_WRITE, sizeof(float) * inputDataSize,
-                                       NULL, &errCode);
+    cl_mem dataBuffer = clCreateBuffer(prefixSumContext->context, CL_MEM_READ_WRITE, sizeof(float) * inputDataSize, NULL, &errCode);
     CHECK_ERR("clCreateBuffer input data", errCode, release_context);
 
-    errCode = clEnqueueWriteBuffer(prefixSumContext->commandQueue, dataBuffer, CL_TRUE, 0,
-                                   sizeof(float) * inputDataSize, inputData, 0, NULL, NULL);
+    errCode = clEnqueueWriteBuffer(prefixSumContext->commandQueue, dataBuffer, CL_TRUE, 0, sizeof(float) * inputDataSize, inputData, 0, NULL, NULL);
     CHECK_ERR("clEnqueueWriteBuffer input data", errCode, release_data_buffer);
 
 
@@ -230,22 +226,27 @@ float *prefixSumOpenCL(float const *inputData, size_t inputDataSize) {
 
     prefixSum = (float *) malloc(sizeof(float) * inputDataSize);
 
-    errCode = clEnqueueReadBuffer(prefixSumContext->commandQueue, dataBuffer, 1, 0, sizeof(float) * inputDataSize,
-                                  prefixSum, 0, NULL, NULL);
-    if (errCode) free(prefixSum);
+    errCode = clEnqueueReadBuffer(prefixSumContext->commandQueue, dataBuffer, CL_TRUE, 0, sizeof(float) * inputDataSize, prefixSum, 0, NULL, NULL);
+    if (errCode) {
+        free(prefixSum);
+        prefixSum = NULL;
+    }
     CHECK_ERR("clEnqueueReadBuffer result data", errCode, release_data_buffer);
 
 
-    cl_ulong total_time = printExecutionTimeInfo(prefixSumContext);
-    printf("OpenCL prefix sum time: : %.1fms\n", total_time / 1e6);
+    cl_ulong executionTime = printExecutionTimeInfo(prefixSumContext);
+    printf("OpenCL prefix sum time: : %.1fms\n", executionTime / 1e6);
+
+    double gflops = ((double) inputDataSize) / ((double) executionTime);
+    printf("Performance %.1f GFlops\n", gflops);
 
 
-    release_data_buffer:
+release_data_buffer:
     clReleaseMemObject(dataBuffer);
-    release_context:
+release_context:
     releasePrefixSumContext(prefixSumContext);
-    release_device:
+release_device:
     clReleaseDevice(deviceIds);
-    end:
+end:
     return prefixSum;
 }

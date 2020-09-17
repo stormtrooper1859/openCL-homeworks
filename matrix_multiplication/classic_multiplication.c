@@ -40,7 +40,6 @@ float *matrixMulMP(float const *matrix1, float const *matrix2, int n, int k, int
                 resultMatrix[i * m + j] = tt;
             }
         }
-
     }
 
     free(matrix2T);

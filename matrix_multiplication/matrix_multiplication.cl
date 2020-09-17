@@ -1,3 +1,29 @@
+/*
+ * Перемножение матриц A и B
+ * TILE_W - размер локальной группы. локальная группа должна быть квадратная
+ * WPT - сколько элементов обрабатывает один поток. TILE_W должен делиться на WPT
+ *
+ * Матрица A имеет размерность NxK
+ * Матрица B имеет размерность KxM
+ * Матрица C имеет размерность NxM
+ *
+ * Первое измерение идет по столбцам С, второе по строчкам
+ * # - пример элементов одноверменно обрабатываемых одним ядром
+ *
+ *              B------
+ *              -.....-
+ *              -.....-
+ *              -------
+ *
+ *              --dim0->
+ *
+ *  A----   |   C------
+ *  -...-   |   -..#..-
+ *  -...- dim1  -..#..-
+ *  -...-   |   -.....-
+ *  -----   ˅   -------
+ *
+ */
 __kernel void matrix_mul(global const float *a, global const float *b, global float *c, uint N, uint K, uint M) {
     uint global_X = get_global_id(0);
     uint global_Y = get_global_id(1);
@@ -8,8 +34,8 @@ __kernel void matrix_mul(global const float *a, global const float *b, global fl
     uint cache_poisiton_A = global_Y * K * WPT + local_X;
     uint cache_poisiton_B = global_X + local_Y * M * WPT;
 
-    local float at[TILE_W][TILE_H];
-    local float bt[TILE_W][TILE_H];
+    local float at[TILE_W][TILE_W];
+    local float bt[TILE_W][TILE_W];
 
     float temp[WPT];
     for (int i = 0; i < WPT; ++i) {

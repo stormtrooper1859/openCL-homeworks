@@ -10,6 +10,7 @@ int main() {
     srand(time(0));
 
     const size_t n = 1024 * 1024 * 64; // 325 ms
+//    const size_t n = 256; // 325 ms
 
     clock_t tc0 = clock();
 

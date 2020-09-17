@@ -5,7 +5,9 @@
 #include "utils.h"
 #include "openCL_utils.h"
 
-const size_t LOCAL_GROUP_SIZE = 1024;
+//const size_t LOCAL_GROUP_SIZE = 128;
+//const size_t LOCAL_GROUP_SIZE = 1024;
+const size_t LOCAL_GROUP_SIZE = 128;
 
 
 struct PrefixSumContext {
@@ -82,7 +84,7 @@ struct PrefixSumContext *getPrefixSumContext(cl_device_id deviceIds) {
     props->commandQueue = commandQueue;
     props->context = context;
     props->local_group_size = LOCAL_GROUP_SIZE;
-    props->firstEvent = malloc(sizeof(cl_event) * 10); // количество рекуррентных вызовов не должно превысить 10
+    props->firstEvent = malloc(sizeof(cl_event) * 20); // количество рекуррентных вызовов не должно превысить 10
     props->lastEvent = props->firstEvent;
     props->program = program;
 

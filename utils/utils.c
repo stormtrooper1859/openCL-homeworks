@@ -25,8 +25,8 @@ float *generateMatrix(int a, int b) {
     float *matrix = (float *) malloc(a * b * sizeof(float));
 
     for (int i = 0; i < a * b; i++) {
-//        matrix[i] = (float) (rng() % 21) - 10;
-        matrix[i] = ((float) (rand() % 219) - 109) / 10.0f;
+        matrix[i] = (float) (rng() % 21) - 10;
+//        matrix[i] = ((float) (rand() % 219) - 109) / 10.0f;
 ////        matrix[i] = ((float) (rand() % 219) - 109) / 10.0f;
 //        matrix[i] = ((float) (rng() % 219) - 109) / 10.0f;
 //        matrix[i] += 2.0f * (matrix[i] > 0 ? 1 : -1);
